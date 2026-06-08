@@ -131,6 +131,19 @@ const POUR_PRESETS = [
   { label: '16 oz pint',      oz: 16.0 },
 ]
 
+// -- Wine sweetness levels (per RS chart) -------------------------------------
+const WINE_SWEETNESS = [
+  { value: '',           label: '— Select —' },
+  { value: 'Bone Dry',   label: 'Bone Dry  (< 1 g/L RS)',        color: '#6b728e' },
+  { value: 'Dry',        label: 'Dry  (1–10 g/L RS)',            color: '#3ecf8e' },
+  { value: 'Off-Dry',    label: 'Off-Dry  (10–35 g/L RS)',       color: '#2dd4bf' },
+  { value: 'Semi-Sweet', label: 'Semi-Sweet  (35–50 g/L RS)',    color: '#c9903a' },
+  { value: 'Sweet',      label: 'Sweet  (50–120 g/L RS)',        color: '#f59e0b' },
+  { value: 'Very Sweet', label: 'Very Sweet  (> 120 g/L RS)',    color: '#a78bfa' },
+]
+const WINE_CATEGORIES = ['Wine — Red', 'Wine — White', 'Wine — Rosé', 'Wine — Sparkling']
+function isWineCategory(cat) { return WINE_CATEGORIES.includes(cat) }
+
 // -- Shared button style helpers (mirrors SK pattern) --------------------------
 function bBtn(variant = 'primary', extra = {}) {
   const base = {
@@ -219,7 +232,7 @@ export default function App({ user, tier, can, onUpgrade }) {
   const [bottleForm, setBottleForm]           = useState({
     name: '', category: 'Whiskey / Bourbon', brand: '',
     size_ml: 750, remaining_pct: 100, proof: '', vintage: '',
-    location: 'Bar Cart', notes: '',
+    location: 'Bar Cart', notes: '', sweetness: '',
   })
 
   // -- Pour & Track modal ------------------------------------------------------
@@ -260,7 +273,7 @@ export default function App({ user, tier, can, onUpgrade }) {
     setBottleForm(preset ?? {
       name: '', category: 'Whiskey / Bourbon', brand: '',
       size_ml: 750, remaining_pct: 100, proof: '', vintage: '',
-      location: 'Bar Cart', notes: '',
+      location: 'Bar Cart', notes: '', sweetness: '',
     })
     setShowAddBottle(true)
   }
@@ -319,7 +332,7 @@ export default function App({ user, tier, can, onUpgrade }) {
       const raw = await callClaude({
         system: `You are an expert spirits and wine identifier. Analyze this bottle photo and extract all visible bottle information.
 Return ONLY valid JSON — no markdown, no preamble — as an array of bottle objects (usually 1, but could be multiple if several bottles are visible):
-[{"name":"string (brand + expression, e.g. Maker's Mark Bourbon)","brand":"string","category":"string (must be one of: Whiskey / Bourbon|Scotch|Rye|Irish Whiskey|Vodka|Gin|Rum|Tequila / Mezcal|Brandy / Cognac|Liqueur / Cordial|Amaro / Bitters|Wine — Red|Wine — White|Wine — Rosé|Wine — Sparkling|Beer / Hard Cider|Non-Alcoholic|Other)","proof":"string or null (e.g. '90' or '45% ABV')","vintage":"string or null (year if visible)","size_ml":750,"remaining_pct":100,"location":"Bar Cart","notes":"string or null","confidence":"high|medium|low"}]
+[{"name":"string (brand + expression, e.g. Maker's Mark Bourbon)","brand":"string","category":"string (must be one of: Whiskey / Bourbon|Scotch|Rye|Irish Whiskey|Vodka|Gin|Rum|Tequila / Mezcal|Brandy / Cognac|Liqueur / Cordial|Amaro / Bitters|Wine — Red|Wine — White|Wine — Rosé|Wine — Sparkling|Beer / Hard Cider|Non-Alcoholic|Other)","proof":"string or null (e.g. '90' or '45% ABV')","vintage":"string or null (year if visible)","sweetness":"string or null — for wines only: Bone Dry|Dry|Off-Dry|Semi-Sweet|Sweet|Very Sweet based on wine type","size_ml":750,"remaining_pct":100,"location":"Bar Cart","notes":"string or null","confidence":"high|medium|low"}]
 If the label is unreadable, return a best guess with confidence=low. Never return an empty array — always return at least one object.`,
         prompt: 'Identify all bottles visible in this photo. Extract brand, spirit type, proof/ABV, and any vintage year visible on the label.',
         imageBase64: scanB64,
@@ -344,7 +357,7 @@ If the label is unreadable, return a best guess with confidence=low. Never retur
       const raw = await callClaude({
         system: `You are a liquor store receipt parser. Analyze this receipt and extract all alcohol/beverage purchases.
 Return ONLY valid JSON array — no markdown:
-[{"name":"string (brand + expression)","brand":"string or null","category":"string (Whiskey / Bourbon|Scotch|Rye|Irish Whiskey|Vodka|Gin|Rum|Tequila / Mezcal|Brandy / Cognac|Liqueur / Cordial|Wine — Red|Wine — White|Wine — Rosé|Wine — Sparkling|Beer / Hard Cider|Mixers|Other)","size_ml":750,"proof":null,"vintage":null,"remaining_pct":100,"location":"Bar Cart","price":"string or null","qty":1,"confidence":"high|medium|low"}]
+[{"name":"string (brand + expression)","brand":"string or null","category":"string (Whiskey / Bourbon|Scotch|Rye|Irish Whiskey|Vodka|Gin|Rum|Tequila / Mezcal|Brandy / Cognac|Liqueur / Cordial|Wine — Red|Wine — White|Wine — Rosé|Wine — Sparkling|Beer / Hard Cider|Mixers|Other)","size_ml":750,"proof":null,"vintage":null,"sweetness":null,"remaining_pct":100,"location":"Bar Cart","price":"string or null","qty":1,"confidence":"high|medium|low"}]
 If an item is clearly non-alcoholic, still include it. Skip food items.`,
         prompt: 'Parse this receipt. Extract every bottle/beverage purchased.',
         imageBase64: scanB64,
@@ -952,6 +965,17 @@ function BottleCard({ bottle, onEdit, onDelete, onPour, onMake, unitPref }) {
             {bottle.vintage}
           </span>
         )}
+        {bottle.sweetness && isWineCategory(bottle.category) && (() => {
+          const sw = WINE_SWEETNESS.find(s => s.value === bottle.sweetness)
+          return (
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700,
+              background: (sw?.color || 'var(--sc-muted)') + '22',
+              color: sw?.color || 'var(--sc-muted)',
+              borderRadius: 4, padding: '2px 7px', border: `1px solid ${sw?.color || 'var(--sc-border)'}44` }}>
+              {bottle.sweetness}
+            </span>
+          )
+        })()}
         {bottle.location && (
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--sc-muted)',
             background: 'var(--sc-surface)', borderRadius: 4, padding: '2px 7px', border: '1px solid var(--sc-border)' }}>
@@ -1032,6 +1056,19 @@ function BottleForm({ form, onChange }) {
             onChange={e => onChange({ vintage: e.target.value })} />
         </div>
       </div>
+
+      {/* Wine sweetness — only shown for wine categories */}
+      {isWineCategory(form.category) && (
+        <div style={{ marginBottom: 0 }}>
+          {label('Sweetness Level')}
+          <select style={{ ...fi(), cursor: 'pointer' }} value={form.sweetness || ''}
+            onChange={e => onChange({ sweetness: e.target.value })}>
+            {WINE_SWEETNESS.map(s => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {label('Location')}
       <select style={{ ...fi(), cursor: 'pointer' }} value={form.location || 'Bar Cart'}
@@ -1844,6 +1881,23 @@ function ScannerModal({
                         fontSize: 11, padding: '5px 8px', outline: 'none', boxSizing: 'border-box',
                       }} />
                   </div>
+                  {/* Sweetness — wine only */}
+                  {isWineCategory(bottle.category) && (
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
+                        color: 'var(--sc-muted)', marginBottom: 3 }}>SWEETNESS</div>
+                      <select value={bottle.sweetness || ''}
+                        onChange={e => setScanResults(r => r.map((b, bi) => bi === i ? { ...b, sweetness: e.target.value } : b))}
+                        style={{
+                          width: '100%', background: 'var(--sc-card)', border: '1px solid var(--sc-border)',
+                          borderRadius: 6, color: 'var(--sc-text)', fontFamily: "'DM Sans', sans-serif",
+                          fontSize: 11, padding: '5px 8px', outline: 'none',
+                        }}>
+                        {WINE_SWEETNESS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                      </select>
+                    </div>
+                  )}
+
                   {/* Location */}
                   <div>
                     <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
