@@ -8,6 +8,16 @@ import { supabase, SC_KEYS, loadCloudData, saveCloudData } from './supabaseClien
 import { useBLEScale, gramsToMl, mlToOz, ozToMl } from './hooks/useBLEScale'
 import './App.css'
 
+// -- File helpers (mirrors Smart Kitchen pattern) --------------------------------
+function fileToBase64(f) {
+  return new Promise((res, rej) => {
+    const r = new FileReader()
+    r.onload = () => res(r.result.split(',')[1])
+    r.onerror = rej
+    r.readAsDataURL(f)
+  })
+}
+
 // -- Design tokens (mirrors Smart Kitchen C object) ----------------------------
 const C = {
   bg:           'var(--sc-bg)',
@@ -40,7 +50,17 @@ const FM = "'JetBrains Mono', monospace"
 const ADMIN_EMAILS = ['thesmartkitchenapp@gmail.com', 'michiganrvvacations@gmail.com']
 
 // -- Anthropic API call (Smart Cellar key) -------------------------------------
-async function callClaude({ system, prompt, maxTokens = 800 }) {
+async function callClaude({ system, prompt, imageBase64, imageType, maxTokens = 800 }) {
+  // Build message content — text only, or text + image (mirrors Smart Kitchen pattern)
+  const userContent = []
+  if (imageBase64) {
+    userContent.push({
+      type: 'image',
+      source: { type: 'base64', media_type: imageType || 'image/jpeg', data: imageBase64 },
+    })
+  }
+  userContent.push({ type: 'text', text: prompt })
+
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -48,7 +68,7 @@ async function callClaude({ system, prompt, maxTokens = 800 }) {
       model: 'claude-sonnet-4-5-20251022',
       max_tokens: maxTokens,
       system,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content: userContent }],
     }),
   })
   const data = await res.json()
@@ -168,6 +188,17 @@ export default function App({ user, tier, can, onUpgrade }) {
     return () => clearInterval(interval)
   }, [user])
 
+  // -- Scanner state (bottle photo / receipt / manual — mirrors SK scan pattern) --
+  const [showScanner, setShowScanner]       = useState(false)
+  const [scanMode, setScanMode]             = useState('bottle')   // 'bottle' | 'receipt' | 'manual'
+  const [scanStage, setScanStage]           = useState('upload')   // 'upload' | 'analyzing' | 'review' | 'done'
+  const [scanPreview, setScanPreview]       = useState(null)
+  const [scanB64, setScanB64]               = useState(null)
+  const [scanMime, setScanMime]             = useState('image/jpeg')
+  const [scanResults, setScanResults]       = useState(null)       // array of detected bottles
+  const fileRef   = useRef(null)
+  const galleryRef = useRef(null)
+
   // -- Active view -------------------------------------------------------------
   const [view, setView] = useState('cellar')  // cellar | pour | make | discover | diy | bartesian | log
 
@@ -242,6 +273,110 @@ export default function App({ user, tier, can, onUpgrade }) {
 
   function deleteBottle(id) {
     setCellar(c => c.filter(b => b.id !== id))
+  }
+
+  // ==========================================================================
+  // BOTTLE SCANNER
+  // ==========================================================================
+  function openScanner(mode = 'bottle') {
+    setScanMode(mode)
+    setScanStage('upload')
+    setScanPreview(null)
+    setScanB64(null)
+    setScanResults(null)
+    setShowScanner(true)
+  }
+
+  async function onScanFile(file) {
+    if (!file) {
+      // Clear button pressed
+      setScanPreview(null)
+      setScanB64(null)
+      return
+    }
+    setScanPreview(URL.createObjectURL(file))
+    setScanB64(await fileToBase64(file))
+    setScanMime(file.type || 'image/jpeg')
+    setScanResults(null)
+    setScanStage('upload')
+  }
+
+  async function analyzeBottlePhoto() {
+    if (!scanB64) return
+    setScanStage('analyzing')
+    try {
+      const raw = await callClaude({
+        system: `You are an expert spirits and wine identifier. Analyze this bottle photo and extract all visible bottle information.
+Return ONLY valid JSON — no markdown, no preamble — as an array of bottle objects (usually 1, but could be multiple if several bottles are visible):
+[{"name":"string (brand + expression, e.g. Maker's Mark Bourbon)","brand":"string","category":"string (must be one of: Whiskey / Bourbon|Scotch|Rye|Irish Whiskey|Vodka|Gin|Rum|Tequila / Mezcal|Brandy / Cognac|Liqueur / Cordial|Amaro / Bitters|Wine — Red|Wine — White|Wine — Rosé|Wine — Sparkling|Beer / Hard Cider|Non-Alcoholic|Other)","proof":"string or null (e.g. '90' or '45% ABV')","vintage":"string or null (year if visible)","size_ml":750,"remaining_pct":100,"location":"Bar Cart","notes":"string or null","confidence":"high|medium|low"}]
+If the label is unreadable, return a best guess with confidence=low. Never return an empty array — always return at least one object.`,
+        prompt: 'Identify all bottles visible in this photo. Extract brand, spirit type, proof/ABV, and any vintage year visible on the label.',
+        imageBase64: scanB64,
+        imageType: scanMime,
+        maxTokens: 800,
+      })
+      const clean = raw.replace(/```json|```/g, '').trim()
+      const s = clean.indexOf('['), e = clean.lastIndexOf(']')
+      const bottles = JSON.parse(clean.slice(s, e + 1))
+      setScanResults(bottles.map(b => ({ ...b, selected: true, id: Date.now() + Math.random() })))
+      setScanStage('review')
+    } catch (err) {
+      alert('Could not identify bottle: ' + err.message)
+      setScanStage('upload')
+    }
+  }
+
+  async function analyzeReceiptPhoto() {
+    if (!scanB64) return
+    setScanStage('analyzing')
+    try {
+      const raw = await callClaude({
+        system: `You are a liquor store receipt parser. Analyze this receipt and extract all alcohol/beverage purchases.
+Return ONLY valid JSON array — no markdown:
+[{"name":"string (brand + expression)","brand":"string or null","category":"string (Whiskey / Bourbon|Scotch|Rye|Irish Whiskey|Vodka|Gin|Rum|Tequila / Mezcal|Brandy / Cognac|Liqueur / Cordial|Wine — Red|Wine — White|Wine — Rosé|Wine — Sparkling|Beer / Hard Cider|Mixers|Other)","size_ml":750,"proof":null,"vintage":null,"remaining_pct":100,"location":"Bar Cart","price":"string or null","qty":1,"confidence":"high|medium|low"}]
+If an item is clearly non-alcoholic, still include it. Skip food items.`,
+        prompt: 'Parse this receipt. Extract every bottle/beverage purchased.',
+        imageBase64: scanB64,
+        imageType: scanMime,
+        maxTokens: 1000,
+      })
+      const clean = raw.replace(/```json|```/g, '').trim()
+      const s = clean.indexOf('['), e = clean.lastIndexOf(']')
+      const bottles = JSON.parse(clean.slice(s, e + 1))
+      // Expand by qty (if someone bought 2 of something, add 2 entries)
+      const expanded = bottles.flatMap(b => {
+        const count = parseInt(b.qty) || 1
+        return Array.from({ length: count }, (_, i) => ({
+          ...b, selected: true, id: Date.now() + Math.random() + i
+        }))
+      })
+      setScanResults(expanded)
+      setScanStage('review')
+    } catch (err) {
+      alert('Could not read receipt: ' + err.message)
+      setScanStage('upload')
+    }
+  }
+
+  function commitScanResults() {
+    const now = new Date().toISOString()
+    const toAdd = (scanResults || [])
+      .filter(b => b.selected)
+      .map(({ selected, id, price, qty, confidence, ...bottle }) => ({
+        id: Date.now() + Math.random(),
+        ...bottle,
+        size_ml: bottle.size_ml || 750,
+        remaining_pct: bottle.remaining_pct ?? 100,
+        location: bottle.location || 'Bar Cart',
+        addedAt: now,
+        updatedAt: now,
+      }))
+    setCellar(c => [...c, ...toAdd])
+    setShowScanner(false)
+    setScanStage('done')
+    setScanPreview(null)
+    setScanB64(null)
+    setScanResults(null)
   }
 
   // ==========================================================================
@@ -459,10 +594,9 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
         padding: '0 20px', display: 'flex', alignItems: 'center',
         height: 58, gap: 16,
       }}>
-        {/* Logo — icon + wordmark */}
+        {/* Logo wordmark */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <img src="/icon-192.png" alt="Smart Cellar"
-            style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover' }} />
+          <div style={{ fontSize: 26 }}>🍷</div>
           <div>
             <div style={{ fontFamily: FD, fontSize: 20, color: C.burgundy, lineHeight: 1, fontWeight: 700 }}>
               Smart
@@ -531,7 +665,9 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
               <input placeholder="Search bottles..." value={cellarSearch}
                 onChange={e => setCellarSearch(e.target.value)}
                 style={{ ...bInp({ flex: 1, minWidth: 180, maxWidth: 300 }) }} />
-              <button onClick={() => openAddBottle()} style={{ ...bBtn('primary') }}>+ Add Bottle</button>
+              <button onClick={() => openScanner('bottle')} style={{ ...bBtn('primary') }}>📷 Scan Bottle</button>
+              <button onClick={() => openScanner('receipt')} style={{ ...bBtn('ghost') }}>🧾 Receipt</button>
+              <button onClick={() => openAddBottle()} style={{ ...bBtn('ghost') }}>✏ Manual</button>
               <button onClick={() => { setDiscoverQuery(''); discoverCocktails() }}
                 style={{ ...bBtn('teal') }}>✨ What Can I Make?</button>
             </div>
@@ -614,7 +750,28 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
 
       {/* ━━━━━━━━━━ MODALS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
 
-      {/* Add / Edit Bottle */}
+      {/* ── BOTTLE SCANNER MODAL ────────────────────────────────────────────── */}
+      {showScanner && (
+        <Modal onClose={() => { setShowScanner(false); setScanStage('upload'); setScanPreview(null); setScanB64(null); setScanResults(null) }}
+          title={scanMode === 'bottle' ? '📷 Scan Bottle' : '🧾 Receipt Scanner'}>
+          <ScannerModal
+            scanMode={scanMode} setScanMode={setScanMode}
+            scanStage={scanStage} setScanStage={setScanStage}
+            scanPreview={scanPreview} scanB64={scanB64}
+            scanResults={scanResults} setScanResults={setScanResults}
+            onFile={onScanFile}
+            onAnalyzeBottle={analyzeBottlePhoto}
+            onAnalyzeReceipt={analyzeReceiptPhoto}
+            onCommit={commitScanResults}
+            onClose={() => { setShowScanner(false); setScanStage('upload'); setScanPreview(null); setScanB64(null); setScanResults(null) }}
+            onManual={() => { setShowScanner(false); openAddBottle() }}
+            fileRef={fileRef}
+            galleryRef={galleryRef}
+          />
+        </Modal>
+      )}
+
+      {/* Add / Edit Bottle */}}
       {showAddBottle && (
         <Modal onClose={() => setShowAddBottle(false)} title={editingBottle ? 'Edit Bottle' : 'Add to Cellar'}>
           <BottleForm form={bottleForm} onChange={f => setBottleForm(p => ({ ...p, ...f }))} />
@@ -1403,3 +1560,337 @@ function ErrorMsg({ msg }) {
 
 // bBtn, bInp, bCard, loadLS, saveLS, SPIRIT_CATEGORIES, CAT_COLORS, POUR_PRESETS
 // are all defined at module level above and shared across all sub-components.
+
+// =============================================================================
+// SCANNER MODAL COMPONENT
+// Mirrors Smart Kitchen scan pattern — bottle photo, receipt, manual fallback
+// =============================================================================
+function ScannerModal({
+  scanMode, setScanMode, scanStage, setScanStage,
+  scanPreview, scanB64, scanResults, setScanResults,
+  onFile, onAnalyzeBottle, onAnalyzeReceipt, onCommit, onClose, onManual,
+  fileRef, galleryRef,
+}) {
+  const SPIRIT_CATS = [
+    'Whiskey / Bourbon','Scotch','Rye','Irish Whiskey','Vodka','Gin','Rum',
+    'Tequila / Mezcal','Brandy / Cognac','Liqueur / Cordial','Amaro / Bitters',
+    'Wine — Red','Wine — White','Wine — Rosé','Wine — Sparkling',
+    'Beer / Hard Cider','Hard Seltzer','Non-Alcoholic','Mixers','Syrups & Modifiers',
+    'Bartesian Pods','Other',
+  ]
+
+  // -- UPLOAD STAGE -----------------------------------------------------------
+  if (scanStage === 'upload') return (
+    <div>
+      {/* Mode tabs */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+        {[
+          { id: 'bottle',  label: '📷 Bottle Photo' },
+          { id: 'receipt', label: '🧾 Receipt' },
+        ].map(({ id, label }) => (
+          <button key={id} onClick={() => setScanMode(id)}
+            style={{
+              flex: 1, padding: '10px', borderRadius: 9, cursor: 'pointer',
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 700,
+              border: `1px solid ${scanMode === id ? 'var(--sc-burgundy)' : 'var(--sc-border)'}`,
+              background: scanMode === id ? 'var(--sc-burgundy)22' : 'transparent',
+              color: scanMode === id ? 'var(--sc-burgundy)' : 'var(--sc-muted)',
+            }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Context hint */}
+      <div style={{
+        background: 'var(--sc-surface)', borderRadius: 10, padding: '10px 14px',
+        marginBottom: 14, fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+        color: 'var(--sc-muted)', lineHeight: 1.6,
+      }}>
+        {scanMode === 'bottle'
+          ? '📷 Point camera at the front label of any bottle. Works with spirits, wine, beer, and mixers. Multiple bottles in one shot OK.'
+          : '🧾 Photograph your liquor store or wine shop receipt. Smart Cellar will extract every bottle purchased and add them all at once.'}
+      </div>
+
+      {/* Drop zone — tap to camera, button for gallery */}
+      <div onClick={() => fileRef.current?.click()}
+        style={{
+          border: `2px dashed ${scanPreview ? 'var(--sc-burgundy)' : 'var(--sc-border)'}`,
+          borderRadius: 14, cursor: 'pointer', overflow: 'hidden',
+          minHeight: 180, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: scanPreview ? 'transparent' : 'var(--sc-surface)', marginBottom: 14,
+        }}>
+        {scanPreview ? (
+          <div style={{ position: 'relative', width: '100%' }}>
+            <img src={scanPreview} alt="" style={{
+              width: '100%', display: 'block', borderRadius: 12,
+              maxHeight: 260, objectFit: 'contain',
+            }} />
+            <button onClick={e => { e.stopPropagation(); onFile(null) }}
+              style={{
+                position: 'absolute', top: 8, right: 8, background: '#000a',
+                border: 'none', color: '#fff', borderRadius: '50%',
+                width: 28, height: 28, cursor: 'pointer', fontSize: 14,
+              }}>✕</button>
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: 32 }}>
+            <div style={{ fontSize: 40, marginBottom: 10 }}>
+              {scanMode === 'bottle' ? '🍾' : '🧾'}
+            </div>
+            <div style={{
+              fontFamily: "'Cormorant Garamond', serif", fontSize: 18,
+              color: 'var(--sc-text)', marginBottom: 4,
+            }}>
+              {scanMode === 'bottle' ? 'Tap to photograph bottle' : 'Tap to photograph receipt'}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--sc-muted)', marginBottom: 14 }}>
+              opens camera directly
+            </div>
+            <button onClick={e => { e.stopPropagation(); galleryRef.current?.click() }}
+              style={{
+                background: 'transparent', border: '1px solid var(--sc-border)',
+                borderRadius: 8, color: 'var(--sc-muted)', cursor: 'pointer',
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 11, padding: '6px 16px',
+              }}>
+              Choose from Gallery
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Hidden file inputs — camera and gallery */}
+      <input ref={fileRef} type="file" accept="image/*" capture="environment"
+        style={{ display: 'none' }} onChange={e => onFile(e.target.files[0])} />
+      <input ref={galleryRef} type="file" accept="image/*"
+        style={{ display: 'none' }} onChange={e => onFile(e.target.files[0])} />
+
+      {/* Action buttons */}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button onClick={onManual}
+          style={{
+            flex: 1, padding: '10px', borderRadius: 9,
+            border: '1px solid var(--sc-border)', background: 'transparent',
+            color: 'var(--sc-muted)', cursor: 'pointer',
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 600,
+          }}>
+          ✏ Manual Entry
+        </button>
+        <button
+          onClick={scanMode === 'receipt' ? onAnalyzeReceipt : onAnalyzeBottle}
+          disabled={!scanB64}
+          style={{
+            flex: 2, padding: '10px', borderRadius: 9, border: 'none',
+            background: scanB64 ? 'var(--sc-burgundy)' : 'var(--sc-border)',
+            color: scanB64 ? '#fff' : 'var(--sc-muted)',
+            cursor: scanB64 ? 'pointer' : 'not-allowed',
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 700,
+            opacity: scanB64 ? 1 : 0.5,
+          }}>
+          {scanMode === 'bottle' ? '🔍 Identify Bottle' : '🧾 Read Receipt'}
+        </button>
+      </div>
+    </div>
+  )
+
+  // -- ANALYZING STAGE --------------------------------------------------------
+  if (scanStage === 'analyzing') return (
+    <div style={{ textAlign: 'center', padding: '32px 0' }}>
+      {scanPreview && (
+        <img src={scanPreview} alt="" style={{
+          width: '100%', borderRadius: 10, maxHeight: 200,
+          objectFit: 'contain', opacity: 0.5, marginBottom: 20,
+        }} />
+      )}
+      <div style={{ fontSize: 40, marginBottom: 12,
+        animation: 'sc-spin 1.2s linear infinite', display: 'inline-block' }}>🍾</div>
+      <div style={{
+        fontFamily: "'Cormorant Garamond', serif", fontSize: 22,
+        color: 'var(--sc-burgundy)', marginBottom: 8,
+      }}>
+        {scanMode === 'bottle' ? 'Identifying bottle…' : 'Reading receipt…'}
+      </div>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--sc-muted)' }}>
+        This takes about 10–15 seconds
+      </div>
+    </div>
+  )
+
+  // -- REVIEW STAGE -----------------------------------------------------------
+  if (scanStage === 'review' && scanResults) {
+    const selectedCount = scanResults.filter(b => b.selected).length
+    return (
+      <div>
+        {/* Thumbnail */}
+        {scanPreview && (
+          <img src={scanPreview} alt="" style={{
+            width: '100%', borderRadius: 8, maxHeight: 80,
+            objectFit: 'cover', marginBottom: 12, opacity: 0.6,
+          }} />
+        )}
+
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--sc-muted)' }}>
+            {selectedCount} of {scanResults.length} bottle{scanResults.length !== 1 ? 's' : ''} selected
+          </div>
+          <button onClick={() => setScanResults(r => {
+            const allSelected = r.every(b => b.selected)
+            return r.map(b => ({ ...b, selected: !allSelected }))
+          })} style={{
+            background: 'none', border: '1px solid var(--sc-border)', borderRadius: 6,
+            color: 'var(--sc-muted)', cursor: 'pointer',
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 10, padding: '3px 10px',
+          }}>
+            {scanResults.every(b => b.selected) ? 'Deselect All' : 'Select All'}
+          </button>
+        </div>
+
+        {/* Bottle cards */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 380, overflowY: 'auto', marginBottom: 14 }}>
+          {scanResults.map((bottle, i) => (
+            <div key={bottle.id || i} style={{
+              background: bottle.selected ? 'var(--sc-surface)' : 'var(--sc-card)',
+              border: `1px solid ${bottle.selected ? 'var(--sc-burgundy)' : 'var(--sc-border)'}`,
+              borderRadius: 12, padding: '12px 14px',
+            }}>
+              {/* Row 1: checkbox + name + confidence */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10,
+                cursor: 'pointer' }}
+                onClick={() => setScanResults(r => r.map((b, bi) => bi === i ? { ...b, selected: !b.selected } : b))}>
+                <div style={{
+                  width: 20, height: 20, borderRadius: 5, flexShrink: 0,
+                  border: `2px solid ${bottle.selected ? 'var(--sc-teal)' : 'var(--sc-border)'}`,
+                  background: bottle.selected ? 'var(--sc-teal)' : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, color: '#0c0e14', fontWeight: 700,
+                }}>
+                  {bottle.selected && '✓'}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <input
+                    value={bottle.name || ''}
+                    onClick={e => e.stopPropagation()}
+                    onChange={e => setScanResults(r => r.map((b, bi) => bi === i ? { ...b, name: e.target.value } : b))}
+                    style={{
+                      width: '100%', background: 'var(--sc-card)', border: '1px solid var(--sc-border)',
+                      borderRadius: 6, color: 'var(--sc-text)', fontFamily: "'Cormorant Garamond', serif",
+                      fontSize: 15, fontWeight: 700, padding: '4px 8px', outline: 'none',
+                    }} />
+                </div>
+                <span style={{
+                  fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700,
+                  padding: '2px 7px', borderRadius: 6,
+                  background: bottle.confidence === 'high' ? 'var(--sc-teal)22' : bottle.confidence === 'low' ? 'var(--sc-red)22' : 'var(--sc-amber)22',
+                  color: bottle.confidence === 'high' ? 'var(--sc-teal)' : bottle.confidence === 'low' ? 'var(--sc-red)' : 'var(--sc-amber)',
+                }}>
+                  {bottle.confidence === 'high' ? '✓ HIGH' : bottle.confidence === 'low' ? '⚠ LOW' : '● MED'}
+                </span>
+              </div>
+
+              {/* Row 2: editable fields */}
+              {bottle.selected && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}
+                  onClick={e => e.stopPropagation()}>
+                  {/* Category */}
+                  <div>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
+                      color: 'var(--sc-muted)', marginBottom: 3 }}>CATEGORY</div>
+                    <select value={bottle.category || 'Other'}
+                      onChange={e => setScanResults(r => r.map((b, bi) => bi === i ? { ...b, category: e.target.value } : b))}
+                      style={{
+                        width: '100%', background: 'var(--sc-card)', border: '1px solid var(--sc-border)',
+                        borderRadius: 6, color: 'var(--sc-text)', fontFamily: "'DM Sans', sans-serif",
+                        fontSize: 11, padding: '5px 8px', outline: 'none',
+                      }}>
+                      {SPIRIT_CATS.map(c => <option key={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  {/* Size */}
+                  <div>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
+                      color: 'var(--sc-muted)', marginBottom: 3 }}>SIZE</div>
+                    <select value={bottle.size_ml || 750}
+                      onChange={e => setScanResults(r => r.map((b, bi) => bi === i ? { ...b, size_ml: +e.target.value } : b))}
+                      style={{
+                        width: '100%', background: 'var(--sc-card)', border: '1px solid var(--sc-border)',
+                        borderRadius: 6, color: 'var(--sc-text)', fontFamily: "'DM Sans', sans-serif",
+                        fontSize: 11, padding: '5px 8px', outline: 'none',
+                      }}>
+                      {[50,200,375,500,750,1000,1750].map(s => <option key={s} value={s}>{s}ml</option>)}
+                    </select>
+                  </div>
+                  {/* Proof */}
+                  <div>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
+                      color: 'var(--sc-muted)', marginBottom: 3 }}>PROOF</div>
+                    <input value={bottle.proof || ''}
+                      onChange={e => setScanResults(r => r.map((b, bi) => bi === i ? { ...b, proof: e.target.value } : b))}
+                      placeholder="e.g. 90"
+                      style={{
+                        width: '100%', background: 'var(--sc-card)', border: '1px solid var(--sc-border)',
+                        borderRadius: 6, color: 'var(--sc-text)', fontFamily: "'DM Sans', sans-serif",
+                        fontSize: 11, padding: '5px 8px', outline: 'none', boxSizing: 'border-box',
+                      }} />
+                  </div>
+                  {/* Location */}
+                  <div>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
+                      color: 'var(--sc-muted)', marginBottom: 3 }}>LOCATION</div>
+                    <select value={bottle.location || 'Bar Cart'}
+                      onChange={e => setScanResults(r => r.map((b, bi) => bi === i ? { ...b, location: e.target.value } : b))}
+                      style={{
+                        width: '100%', background: 'var(--sc-card)', border: '1px solid var(--sc-border)',
+                        borderRadius: 6, color: 'var(--sc-text)', fontFamily: "'DM Sans', sans-serif",
+                        fontSize: 11, padding: '5px 8px', outline: 'none',
+                      }}>
+                      {['Bar Cart','Home Bar','Wine Rack','Cellar','Cabinet','Fridge','Garage'].map(l => <option key={l}>{l}</option>)}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Commit bar */}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => { setScanStage('upload'); setScanResults(null) }}
+            style={{
+              flex: 1, padding: '10px', borderRadius: 9,
+              border: '1px solid var(--sc-border)', background: 'transparent',
+              color: 'var(--sc-muted)', cursor: 'pointer',
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 600,
+            }}>
+            ↺ Rescan
+          </button>
+          <button onClick={onCommit} disabled={selectedCount === 0}
+            style={{
+              flex: 2, padding: '10px', borderRadius: 9, border: 'none',
+              background: selectedCount > 0 ? 'var(--sc-teal)' : 'var(--sc-border)',
+              color: selectedCount > 0 ? '#0c0e14' : 'var(--sc-muted)',
+              cursor: selectedCount > 0 ? 'pointer' : 'not-allowed',
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 700,
+              opacity: selectedCount > 0 ? 1 : 0.5,
+            }}>
+            ✓ Add {selectedCount} Bottle{selectedCount !== 1 ? 's' : ''} to Cellar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // -- DONE STAGE -------------------------------------------------------------
+  return (
+    <div style={{ textAlign: 'center', padding: '32px 0' }}>
+      <div style={{ fontSize: 48, marginBottom: 12 }}>🥂</div>
+      <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24,
+        color: 'var(--sc-teal)', marginBottom: 8 }}>Added to Cellar!</div>
+      <button onClick={onClose} style={{
+        marginTop: 16, padding: '10px 28px', borderRadius: 9, border: 'none',
+        background: 'var(--sc-burgundy)', color: '#fff', cursor: 'pointer',
+        fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 700,
+      }}>Done</button>
+    </div>
+  )
+}
