@@ -232,7 +232,7 @@ export default function App({ user, tier, can, onUpgrade }) {
   const [bottleForm, setBottleForm]           = useState({
     name: '', category: 'Whiskey / Bourbon', brand: '',
     size_ml: 750, remaining_pct: 100, proof: '', vintage: '',
-    location: 'Bar Cart', notes: '', sweetness: '',
+    location: 'Bar Cart', notes: '', sweetness: '', winery_url: '',
   })
 
   // -- Pour & Track modal ------------------------------------------------------
@@ -273,7 +273,7 @@ export default function App({ user, tier, can, onUpgrade }) {
     setBottleForm(preset ?? {
       name: '', category: 'Whiskey / Bourbon', brand: '',
       size_ml: 750, remaining_pct: 100, proof: '', vintage: '',
-      location: 'Bar Cart', notes: '', sweetness: '',
+      location: 'Bar Cart', notes: '', sweetness: '', winery_url: '',
     })
     setShowAddBottle(true)
   }
@@ -332,7 +332,7 @@ export default function App({ user, tier, can, onUpgrade }) {
       const raw = await callClaude({
         system: `You are an expert spirits and wine identifier. Analyze this bottle photo and extract all visible bottle information.
 Return ONLY valid JSON — no markdown, no preamble — as an array of bottle objects (usually 1, but could be multiple if several bottles are visible):
-[{"name":"string (brand + expression, e.g. Maker's Mark Bourbon)","brand":"string","category":"string (must be one of: Whiskey / Bourbon|Scotch|Rye|Irish Whiskey|Vodka|Gin|Rum|Tequila / Mezcal|Brandy / Cognac|Liqueur / Cordial|Amaro / Bitters|Wine — Red|Wine — White|Wine — Rosé|Wine — Sparkling|Beer / Hard Cider|Non-Alcoholic|Other)","proof":"string or null (e.g. '90' or '45% ABV')","vintage":"string or null (year if visible)","sweetness":"string or null — for wines only: Bone Dry|Dry|Off-Dry|Semi-Sweet|Sweet|Very Sweet based on wine type","size_ml":750,"remaining_pct":100,"location":"Bar Cart","notes":"string or null","confidence":"high|medium|low"}]
+[{"name":"string (brand + expression, e.g. Maker's Mark Bourbon)","brand":"string","category":"string (must be one of: Whiskey / Bourbon|Scotch|Rye|Irish Whiskey|Vodka|Gin|Rum|Tequila / Mezcal|Brandy / Cognac|Liqueur / Cordial|Amaro / Bitters|Wine — Red|Wine — White|Wine — Rosé|Wine — Sparkling|Beer / Hard Cider|Non-Alcoholic|Other)","proof":"string or null (e.g. '90' or '45% ABV')","vintage":"string or null (year if visible)","sweetness":"string or null — for wines only: Bone Dry|Dry|Off-Dry|Semi-Sweet|Sweet|Very Sweet based on wine type","winery_url":"string or null (official winery/distillery website URL if you know it with high confidence, e.g. https://www.makersmark.com — null if unsure)","size_ml":750,"remaining_pct":100,"location":"Bar Cart","notes":"string or null","confidence":"high|medium|low"}]
 If the label is unreadable, return a best guess with confidence=low. Never return an empty array — always return at least one object.`,
         prompt: 'Identify all bottles visible in this photo. Extract brand, spirit type, proof/ABV, and any vintage year visible on the label.',
         imageBase64: scanB64,
@@ -357,7 +357,7 @@ If the label is unreadable, return a best guess with confidence=low. Never retur
       const raw = await callClaude({
         system: `You are a liquor store receipt parser. Analyze this receipt and extract all alcohol/beverage purchases.
 Return ONLY valid JSON array — no markdown:
-[{"name":"string (brand + expression)","brand":"string or null","category":"string (Whiskey / Bourbon|Scotch|Rye|Irish Whiskey|Vodka|Gin|Rum|Tequila / Mezcal|Brandy / Cognac|Liqueur / Cordial|Wine — Red|Wine — White|Wine — Rosé|Wine — Sparkling|Beer / Hard Cider|Mixers|Other)","size_ml":750,"proof":null,"vintage":null,"sweetness":null,"remaining_pct":100,"location":"Bar Cart","price":"string or null","qty":1,"confidence":"high|medium|low"}]
+[{"name":"string (brand + expression)","brand":"string or null","category":"string (Whiskey / Bourbon|Scotch|Rye|Irish Whiskey|Vodka|Gin|Rum|Tequila / Mezcal|Brandy / Cognac|Liqueur / Cordial|Wine — Red|Wine — White|Wine — Rosé|Wine — Sparkling|Beer / Hard Cider|Mixers|Other)","size_ml":750,"proof":null,"vintage":null,"sweetness":null,"winery_url":null,"remaining_pct":100,"location":"Bar Cart","price":"string or null","qty":1,"confidence":"high|medium|low"}]
 If an item is clearly non-alcoholic, still include it. Skip food items.`,
         prompt: 'Parse this receipt. Extract every bottle/beverage purchased.',
         imageBase64: scanB64,
@@ -995,6 +995,22 @@ function BottleCard({ bottle, onEdit, onDelete, onPour, onMake, unitPref }) {
         <button onClick={onEdit} style={{ ...bBtn('ghost', { fontSize: 12, padding: '7px 10px' }) }}>✏</button>
         <button onClick={onDelete} style={{ ...bBtn('danger', { fontSize: 12, padding: '7px 10px' }) }}>🗑</button>
       </div>
+      {/* Winery / producer website link */}
+      {bottle.winery_url && (
+        <a href={bottle.winery_url} target="_blank" rel="noopener noreferrer"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6, marginTop: 8,
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+            color: 'var(--sc-teal)', textDecoration: 'none',
+            background: 'var(--sc-teal)10', border: '1px solid var(--sc-teal)33',
+            borderRadius: 8, padding: '6px 10px',
+          }}>
+          🌐 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {bottle.winery_url.replace(/^https?:\/\/(www\.)?/, '')}
+          </span>
+          <span style={{ flexShrink: 0, fontSize: 10, opacity: 0.7 }}>↗</span>
+        </a>
+      )}
     </div>
   )
 }
@@ -1081,6 +1097,11 @@ function BottleForm({ form, onChange }) {
       <textarea style={{ ...fi(), resize: 'vertical', minHeight: 60 }}
         placeholder="Tasting notes, gift info, etc."
         value={form.notes || ''} onChange={e => onChange({ notes: e.target.value })} />
+
+      {label('Winery / Producer Website (optional)')}
+      <input style={fi()} placeholder="e.g. https://www.forestridgewinery.com"
+        value={form.winery_url || ''}
+        onChange={e => onChange({ winery_url: e.target.value })} />
     </div>
   )
 }
@@ -1911,6 +1932,30 @@ function ScannerModal({
                       }}>
                       {['Bar Cart','Home Bar','Wine Rack','Cellar','Cabinet','Fridge','Garage'].map(l => <option key={l}>{l}</option>)}
                     </select>
+                  </div>
+
+                  {/* Winery URL — full width */}
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
+                      color: 'var(--sc-muted)', marginBottom: 3 }}>
+                      WINERY / PRODUCER WEBSITE
+                      {bottle.winery_url && (
+                        <a href={bottle.winery_url} target="_blank" rel="noopener noreferrer"
+                          style={{ marginLeft: 8, color: 'var(--sc-teal)', fontSize: 9 }}>
+                          ↗ Visit
+                        </a>
+                      )}
+                    </div>
+                    <input
+                      value={bottle.winery_url || ''}
+                      onChange={e => setScanResults(r => r.map((b, bi) => bi === i ? { ...b, winery_url: e.target.value } : b))}
+                      placeholder="https://www.wineryname.com"
+                      style={{
+                        width: '100%', background: 'var(--sc-card)', border: '1px solid var(--sc-border)',
+                        borderRadius: 6, color: bottle.winery_url ? 'var(--sc-teal)' : 'var(--sc-muted)',
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontSize: 10, padding: '5px 8px', outline: 'none', boxSizing: 'border-box',
+                      }} />
                   </div>
                 </div>
               )}
