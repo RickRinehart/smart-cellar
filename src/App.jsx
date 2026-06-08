@@ -936,143 +936,147 @@ function BottleCard({ bottle, onEdit, onDelete, onPour, onMake, unitPref }) {
   return (
     <div style={{
       background: 'var(--sc-card)', border: '1px solid var(--sc-border)',
-      borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 0,
+      borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column',
       transition: 'border-color 0.15s',
     }}>
-      {/* Bottle photo — shown if captured during scan */}
+
+      {/* Bottle photo banner — shown if captured during scan */}
       {bottle.photo_b64 && (
-        <div style={{ position: 'relative', width: '100%', height: 160, overflow: 'hidden' }}>
+        <div style={{ position: 'relative', width: '100%', height: 160, overflow: 'hidden', flexShrink: 0 }}>
           <img
             src={`data:image/jpeg;base64,${bottle.photo_b64}`}
             alt={bottle.name}
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
           />
-          {/* Gradient overlay so text stays readable */}
           <div style={{
             position: 'absolute', bottom: 0, left: 0, right: 0, height: 60,
             background: 'linear-gradient(transparent, var(--sc-card))',
           }} />
-          {/* Category badge over photo */}
           <div style={{
             position: 'absolute', top: 8, right: 8,
             fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700,
-            color: catColor, background: 'rgba(0,0,0,0.7)', borderRadius: 6,
+            color: catColor, background: 'rgba(0,0,0,0.75)', borderRadius: 6,
             padding: '3px 8px', backdropFilter: 'blur(4px)',
           }}>
             {bottle.category}
           </div>
         </div>
       )}
+
+      {/* Card body */}
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {/* Top row */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 18, fontWeight: 700,
-            color: 'var(--sc-text)', lineHeight: 1.2, marginBottom: 2 }}>
-            {bottle.name}
+
+        {/* Top row: name + category badge (badge hidden when photo present) */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 18, fontWeight: 700,
+              color: 'var(--sc-text)', lineHeight: 1.2, marginBottom: 2 }}>
+              {bottle.name}
+            </div>
+            {bottle.brand && (
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--sc-muted)' }}>
+                {bottle.brand}
+              </div>
+            )}
           </div>
-          {bottle.brand && (
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--sc-muted)' }}>
-              {bottle.brand}
+          {!bottle.photo_b64 && (
+            <div style={{
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700,
+              color: catColor, background: catColor + '18', borderRadius: 6,
+              padding: '3px 8px', whiteSpace: 'nowrap', marginLeft: 8,
+            }}>
+              {bottle.category}
             </div>
           )}
         </div>
-        {/* Hide category badge here when photo is shown — it's displayed over the photo instead */}
-        {!bottle.photo_b64 && (
-          <div style={{
-            fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700,
-            color: catColor, background: catColor + '18', borderRadius: 6,
-            padding: '3px 8px', whiteSpace: 'nowrap', marginLeft: 8,
-          }}>
-            {bottle.category}
-          </div>
-        )}
-      </div>
 
-      {/* Fill level bar */}
-      <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--sc-muted)' }}>
-            {bottle.size_ml || 750}ml bottle
-          </span>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700,
-            color: isLow ? 'var(--sc-red)' : 'var(--sc-text)' }}>
-            {Math.round(pct)}% {isLow ? '⚠ Low' : 'remaining'}
-          </span>
-        </div>
-        <div style={{ height: 6, background: 'var(--sc-border)', borderRadius: 3 }}>
-          <div style={{
-            height: '100%', width: pct + '%', borderRadius: 3,
-            background: isLow ? 'var(--sc-red)' : catColor,
-            transition: 'width 0.3s',
-          }} />
-        </div>
-      </div>
-
-      {/* Meta */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {bottle.proof && (
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--sc-muted)',
-            background: 'var(--sc-surface)', borderRadius: 4, padding: '2px 7px', border: '1px solid var(--sc-border)' }}>
-            {bottle.proof}° proof
-          </span>
-        )}
-        {bottle.vintage && (
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--sc-muted)',
-            background: 'var(--sc-surface)', borderRadius: 4, padding: '2px 7px', border: '1px solid var(--sc-border)' }}>
-            {bottle.vintage}
-          </span>
-        )}
-        {bottle.sweetness && isWineCategory(bottle.category) && (() => {
-          const sw = WINE_SWEETNESS.find(s => s.value === bottle.sweetness)
-          return (
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700,
-              background: (sw?.color || 'var(--sc-muted)') + '22',
-              color: sw?.color || 'var(--sc-muted)',
-              borderRadius: 4, padding: '2px 7px', border: `1px solid ${sw?.color || 'var(--sc-border)'}44` }}>
-              {bottle.sweetness}
+        {/* Fill level bar */}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--sc-muted)' }}>
+              {bottle.size_ml || 750}ml bottle
             </span>
-          )
-        })()}
-        {bottle.location && (
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--sc-muted)',
-            background: 'var(--sc-surface)', borderRadius: 4, padding: '2px 7px', border: '1px solid var(--sc-border)' }}>
-            📍 {bottle.location}
-          </span>
-        )}
-      </div>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700,
+              color: isLow ? 'var(--sc-red)' : 'var(--sc-text)' }}>
+              {Math.round(pct)}% {isLow ? '⚠ Low' : 'remaining'}
+            </span>
+          </div>
+          <div style={{ height: 6, background: 'var(--sc-border)', borderRadius: 3 }}>
+            <div style={{
+              height: '100%', width: pct + '%', borderRadius: 3,
+              background: isLow ? 'var(--sc-red)' : catColor,
+              transition: 'width 0.3s',
+            }} />
+          </div>
+        </div>
 
-      {/* Actions */}
-      <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-        <button onClick={onPour} style={{ ...bBtn('primary', { flex: 1, fontSize: 12, padding: '7px 10px' }) }}>
-          ⚖ Pour
-        </button>
-        <button onClick={onMake} style={{ ...bBtn('gold', { flex: 1, fontSize: 12, padding: '7px 10px' }) }}>
-          🍹 Make
-        </button>
-        <button onClick={onEdit} style={{ ...bBtn('ghost', { fontSize: 12, padding: '7px 10px' }) }}>✏</button>
-        <button onClick={onDelete} style={{ ...bBtn('danger', { fontSize: 12, padding: '7px 10px' }) }}>🗑</button>
-      </div>
-      {/* Winery / producer website link */}
-      {bottle.winery_url && (
-        <a href={bottle.winery_url} target="_blank" rel="noopener noreferrer"
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6, marginTop: 8,
-            fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
-            color: 'var(--sc-teal)', textDecoration: 'none',
-            background: 'var(--sc-teal)10', border: '1px solid var(--sc-teal)33',
-            borderRadius: 8, padding: '6px 10px',
-          }}>
-          🌐 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {bottle.winery_url.replace(/^https?:\/\/(www\.)?/, '')}
-          </span>
-          <span style={{ flexShrink: 0, fontSize: 10, opacity: 0.7 }}>↗</span>
-        </a>
-      )}
-      </div>{/* end inner padding wrapper */}
+        {/* Meta tags */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {bottle.proof && (
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--sc-muted)',
+              background: 'var(--sc-surface)', borderRadius: 4, padding: '2px 7px', border: '1px solid var(--sc-border)' }}>
+              {bottle.proof}° proof
+            </span>
+          )}
+          {bottle.vintage && (
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--sc-muted)',
+              background: 'var(--sc-surface)', borderRadius: 4, padding: '2px 7px', border: '1px solid var(--sc-border)' }}>
+              {bottle.vintage}
+            </span>
+          )}
+          {bottle.sweetness && isWineCategory(bottle.category) && (() => {
+            const sw = WINE_SWEETNESS.find(s => s.value === bottle.sweetness)
+            return (
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700,
+                background: (sw?.color || 'var(--sc-muted)') + '22',
+                color: sw?.color || 'var(--sc-muted)',
+                borderRadius: 4, padding: '2px 7px', border: `1px solid ${sw?.color || 'var(--sc-border)'}44` }}>
+                {bottle.sweetness}
+              </span>
+            )
+          })()}
+          {bottle.location && (
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--sc-muted)',
+              background: 'var(--sc-surface)', borderRadius: 4, padding: '2px 7px', border: '1px solid var(--sc-border)' }}>
+              📍 {bottle.location}
+            </span>
+          )}
+        </div>
+
+        {/* Action buttons */}
+        <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+          <button onClick={onPour} style={{ ...bBtn('primary', { flex: 1, fontSize: 12, padding: '7px 10px' }) }}>
+            ⚖ Pour
+          </button>
+          <button onClick={onMake} style={{ ...bBtn('gold', { flex: 1, fontSize: 12, padding: '7px 10px' }) }}>
+            🍹 Make
+          </button>
+          <button onClick={onEdit} style={{ ...bBtn('ghost', { fontSize: 12, padding: '7px 10px' }) }}>✏</button>
+          <button onClick={onDelete} style={{ ...bBtn('danger', { fontSize: 12, padding: '7px 10px' }) }}>🗑</button>
+        </div>
+
+        {/* Winery / producer website link */}
+        {bottle.winery_url && (
+          <a href={bottle.winery_url} target="_blank" rel="noopener noreferrer"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+              color: 'var(--sc-teal)', textDecoration: 'none',
+              background: 'var(--sc-teal)10', border: '1px solid var(--sc-teal)33',
+              borderRadius: 8, padding: '6px 10px',
+            }}>
+            🌐 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {bottle.winery_url.replace(/^https?:\/\/(www\.)?/, '')}
+            </span>
+            <span style={{ flexShrink: 0, fontSize: 10, opacity: 0.7 }}>↗</span>
+          </a>
+        )}
+
+      </div>{/* end card body */}
     </div>
   )
 }
+
 
 // -- Bottle Form ---------------------------------------------------------------
 function BottleForm({ form, onChange }) {
