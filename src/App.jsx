@@ -73,7 +73,7 @@ async function callClaude({ system, prompt, imageBase64, imageType, maxTokens = 
       'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5-20251022',
+      model: 'claude-sonnet-4-5',
       max_tokens: maxTokens,
       system,
       messages: [{ role: 'user', content: userContent }],
