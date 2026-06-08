@@ -141,8 +141,40 @@ function AuthModal({ onClose, onSuccess, initialMode = 'signup' }) {
 // -- Subscription Modal placeholder (Stripe integration - wired same as SK) ----
 function SubscriptionModal({ user, currentTier, onClose, onSubscribed }) {
   const TIERS = [
-    { id: 'cellar_solo',   name: 'Solo',   monthly: 4.99, annual: 49.99, color: 'var(--sc-blue)',    desc: 'Individual bar tracker' },
-    { id: 'cellar_family', name: 'Cellar+', monthly: 7.99, annual: 79.99, color: 'var(--sc-gold)',   desc: 'Unlimited devices + cloud sync' },
+    {
+      id: 'cellar_solo',
+      name: 'Smart Cellar',
+      monthly: 4.99,
+      annual: 39.99,
+      annualPerMonth: 3.33,
+      color: 'var(--sc-burgundy)',
+      desc: 'Full inventory, Smart Pour & AI cocktails',
+      features: [
+        'Unlimited bottle inventory',
+        'Smart Pour (Bluetooth scale)',
+        'AI bartender — Make a Drink',
+        'What Can I Make? cocktail discovery',
+        'DIY craft ingredient guides',
+        'Pour history log',
+        '30-day free trial',
+      ],
+    },
+    {
+      id: 'cellar_family',
+      name: 'Smart Cellar Module',
+      monthly: 2.99,
+      annual: 24.99,
+      annualPerMonth: 2.08,
+      color: 'var(--sc-gold)',
+      desc: 'Add-on for Smart Kitchen subscribers',
+      features: [
+        'Everything in Smart Cellar',
+        'Multi-device sync (bar tablet + phone)',
+        'Smart Kitchen meal-pairing integration',
+        'Priority cloud sync across all devices',
+        'Add-on pricing for SK subscribers',
+      ],
+    },
   ]
   const [billing, setBilling] = useState('monthly')
   const [loading, setLoading] = useState(null)
