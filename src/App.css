@@ -1,0 +1,159 @@
+/* ============================================================
+   Smart Cellar — Design System
+   RG Digital Labs, LLC · June 2026
+   Mirrors Smart Kitchen token structure for cross-app consistency.
+   SC palette: burgundy primary, warm gold accent, teal circuit detail.
+   ============================================================ */
+
+/* -- Google Fonts fallback stack -------------------------------- */
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+
+/* -- Dark theme (default) --------------------------------------- */
+:root,
+body.sc-dark {
+  /* Backgrounds */
+  --sc-bg:           #0c0e14;
+  --sc-surface:      #12141c;
+  --sc-card:         #191c28;
+  --sc-card-hover:   #1e2232;
+
+  /* Borders */
+  --sc-border:       #262b40;
+  --sc-border-light: #2e3450;
+
+  /* Brand palette */
+  --sc-burgundy:     #8b2252;   /* primary brand — wine bottle */
+  --sc-burgundy-dim: #6b1a3e;
+  --sc-gold:         #c9903a;   /* warm gold accent */
+  --sc-gold-dim:     #a67328;
+  --sc-teal:         #2dd4bf;   /* circuit network detail */
+  --sc-teal-dim:     #0fb8a4;
+
+  /* Functional colors */
+  --sc-green:        #3ecf8e;
+  --sc-red:          #f06060;
+  --sc-blue:         #5b9cf6;
+  --sc-purple:       #a78bfa;
+  --sc-orange:       #fb923c;
+  --sc-amber:        #f59e0b;
+
+  /* Typography */
+  --sc-text:         #ede8f0;
+  --sc-muted:        #6b728e;
+  --sc-dim:          #3a4060;
+
+  /* Shadows */
+  --sc-shadow-card:  0 4px 24px rgba(0,0,0,0.4);
+  --sc-shadow-modal: 0 20px 60px rgba(0,0,0,0.6);
+}
+
+/* -- Light theme ----------------------------------------------- */
+body.sc-light {
+  --sc-bg:           #faf6f0;   /* warm cream — spec-locked */
+  --sc-surface:      #ffffff;
+  --sc-card:         #ffffff;
+  --sc-card-hover:   #f5f0ea;
+  --sc-border:       #e0d8cc;
+  --sc-border-light: #cec4b4;
+  --sc-burgundy:     #7a1e48;
+  --sc-burgundy-dim: #5c1636;
+  --sc-gold:         #b07e2a;
+  --sc-gold-dim:     #8c6220;
+  --sc-teal:         #0fb8a4;
+  --sc-teal-dim:     #0a9488;
+  --sc-green:        #2aa86e;
+  --sc-red:          #dc4f4f;
+  --sc-blue:         #3a7bd5;
+  --sc-purple:       #7c5ce0;
+  --sc-orange:       #e07020;
+  --sc-amber:        #d97706;
+  --sc-text:         #1a1628;
+  --sc-muted:        #6b728e;
+  --sc-dim:          #c8c0d0;
+  --sc-shadow-card:  0 2px 12px rgba(0,0,0,0.08);
+  --sc-shadow-modal: 0 20px 60px rgba(0,0,0,0.2);
+}
+
+/* -- Reset & base ---------------------------------------------- */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--sc-bg);
+  color: var(--sc-text);
+  font-family: 'DM Sans', system-ui, sans-serif;
+  min-height: 100vh;
+  line-height: 1.5;
+  transition: background 0.2s, color 0.2s;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* -- Scrollbar ------------------------------------------------- */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--sc-bg); }
+::-webkit-scrollbar-thumb { background: var(--sc-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--sc-muted); }
+
+/* -- Typography helpers ---------------------------------------- */
+.sc-font-display { font-family: 'Cormorant Garamond', Georgia, serif; }
+.sc-font-body    { font-family: 'DM Sans', system-ui, sans-serif; }
+.sc-font-mono    { font-family: 'JetBrains Mono', monospace; }
+
+/* -- Senior / large text mode ---------------------------------- */
+body.sc-senior {
+  font-size: 18px;
+}
+body.sc-senior button,
+body.sc-senior input,
+body.sc-senior select,
+body.sc-senior textarea {
+  font-size: 1rem;
+}
+
+/* -- Utility --------------------------------------------------- */
+.sc-hidden { display: none !important; }
+.sc-sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+
+/* -- Pour fill animation --------------------------------------- */
+@keyframes sc-pour-fill {
+  from { height: 0%; }
+  to   { height: var(--fill-pct, 0%); }
+}
+
+@keyframes sc-pulse-connected {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(45,212,191,0.4); }
+  50%       { box-shadow: 0 0 0 8px rgba(45,212,191,0); }
+}
+
+@keyframes sc-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes sc-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.sc-fade-in { animation: sc-fade-in 0.25s ease forwards; }
+
+/* -- Print reset ----------------------------------------------- */
+@media print {
+  body > * { display: none !important; }
+  #sc-print-root { display: block !important; }
+}
