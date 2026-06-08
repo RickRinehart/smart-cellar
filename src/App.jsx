@@ -771,7 +771,7 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
         </Modal>
       )}
 
-      {/* Add / Edit Bottle */}}
+      {/* Add / Edit Bottle */}
       {showAddBottle && (
         <Modal onClose={() => setShowAddBottle(false)} title={editingBottle ? 'Edit Bottle' : 'Add to Cellar'}>
           <BottleForm form={bottleForm} onChange={f => setBottleForm(p => ({ ...p, ...f }))} />
