@@ -459,9 +459,10 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
         padding: '0 20px', display: 'flex', alignItems: 'center',
         height: 58, gap: 16,
       }}>
-        {/* Logo wordmark */}
+        {/* Logo — icon + wordmark */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ fontSize: 26 }}>🍷</div>
+          <img src="/icon-192.png" alt="Smart Cellar"
+            style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover' }} />
           <div>
             <div style={{ fontFamily: FD, fontSize: 20, color: C.burgundy, lineHeight: 1, fontWeight: 700 }}>
               Smart
