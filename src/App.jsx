@@ -1400,21 +1400,5 @@ function ErrorMsg({ msg }) {
   )
 }
 
-// -- Expose constants for sub-components ---------------------------------------
-function bBtn(variant, extra = {}) {
-  const base = {
-    border: 'none', borderRadius: 10, cursor: 'pointer',
-    fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: 13,
-    padding: '10px 18px', transition: 'opacity 0.15s',
-    display: 'inline-flex', alignItems: 'center', gap: 6,
-  }
-  if (variant === 'primary')   return { ...base, background: 'var(--sc-burgundy)', color: '#fff', ...extra }
-  if (variant === 'gold')      return { ...base, background: 'var(--sc-gold)',      color: '#fff', ...extra }
-  if (variant === 'teal')      return { ...base, background: 'var(--sc-teal)',      color: '#0c0e14', ...extra }
-  if (variant === 'ghost')     return { ...base, background: 'var(--sc-surface)',   color: 'var(--sc-text)', border: '1px solid var(--sc-border)', ...extra }
-  if (variant === 'danger')    return { ...base, background: 'transparent',          color: 'var(--sc-red)', border: '1px solid var(--sc-red)44', ...extra }
-  if (variant === 'sk-promo')  return { ...base, background: '#f0a500',             color: '#0c0e14', ...extra }
-  return base
-}
-
-// Re-export category data needed by BottleCard (defined at module level above)
+// bBtn, bInp, bCard, loadLS, saveLS, SPIRIT_CATEGORIES, CAT_COLORS, POUR_PRESETS
+// are all defined at module level above and shared across all sub-components.
