@@ -61,18 +61,29 @@ async function callClaude({ system, prompt, imageBase64, imageType, maxTokens = 
   }
   userContent.push({ type: 'text', text: prompt })
 
+  // Must include x-api-key and anthropic-dangerous-direct-browser-access for browser calls
+  // (mirrors Smart Kitchen callClaude pattern exactly)
+  const apiKey = import.meta.env?.VITE_ANTHROPIC_KEY || ''
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
     body: JSON.stringify({
       model: 'claude-sonnet-4-5-20251022',
       max_tokens: maxTokens,
       system,
       messages: [{ role: 'user', content: userContent }],
     }),
+    signal: AbortSignal.timeout(30000),
   })
+  if (!res.ok) throw new Error('API error ' + res.status)
   const data = await res.json()
-  return data?.content?.[0]?.text || ''
+  if (data.error) throw new Error(data.error.message || 'API error')
+  return (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim()
 }
 
 // -- Bottle categories ---------------------------------------------------------
