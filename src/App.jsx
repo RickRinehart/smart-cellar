@@ -18,6 +18,28 @@ function fileToBase64(f) {
   })
 }
 
+// Compress image to max 800px wide, JPEG 0.75 quality — keeps localStorage footprint small
+// (~50–100KB per bottle photo vs 2–5MB raw)
+function compressImage(file, maxPx = 800, quality = 0.75) {
+  return new Promise((res, rej) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height))
+      const w = Math.round(img.width * scale)
+      const h = Math.round(img.height * scale)
+      const canvas = document.createElement('canvas')
+      canvas.width = w; canvas.height = h
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+      URL.revokeObjectURL(url)
+      const b64 = canvas.toDataURL('image/jpeg', quality).split(',')[1]
+      res(b64)
+    }
+    img.onerror = rej
+    img.src = url
+  })
+}
+
 // -- Design tokens (mirrors Smart Kitchen C object) ----------------------------
 const C = {
   bg:           'var(--sc-bg)',
@@ -220,6 +242,7 @@ export default function App({ user, tier, can, onUpgrade }) {
   const [scanB64, setScanB64]               = useState(null)
   const [scanMime, setScanMime]             = useState('image/jpeg')
   const [scanResults, setScanResults]       = useState(null)       // array of detected bottles
+  const [scanB64Compressed, setScanB64Compressed] = useState(null)
   const fileRef   = useRef(null)
   const galleryRef = useRef(null)
 
@@ -232,7 +255,7 @@ export default function App({ user, tier, can, onUpgrade }) {
   const [bottleForm, setBottleForm]           = useState({
     name: '', category: 'Whiskey / Bourbon', brand: '',
     size_ml: 750, remaining_pct: 100, proof: '', vintage: '',
-    location: 'Bar Cart', notes: '', sweetness: '', winery_url: '',
+    location: 'Bar Cart', notes: '', sweetness: '', winery_url: '', photo_b64: null,
   })
 
   // -- Pour & Track modal ------------------------------------------------------
@@ -313,14 +336,19 @@ export default function App({ user, tier, can, onUpgrade }) {
 
   async function onScanFile(file) {
     if (!file) {
-      // Clear button pressed
       setScanPreview(null)
       setScanB64(null)
       return
     }
     setScanPreview(URL.createObjectURL(file))
+    // Full-res for API vision call; compressed copy saved to bottle card
     setScanB64(await fileToBase64(file))
     setScanMime(file.type || 'image/jpeg')
+    // Pre-compute compressed version for storage (attached in commitScanResults)
+    try {
+      const compressed = await compressImage(file)
+      setScanB64Compressed(compressed)
+    } catch { setScanB64Compressed(null) }
     setScanResults(null)
     setScanStage('upload')
   }
@@ -392,6 +420,8 @@ If an item is clearly non-alcoholic, still include it. Skip food items.`,
         size_ml: bottle.size_ml || 750,
         remaining_pct: bottle.remaining_pct ?? 100,
         location: bottle.location || 'Bar Cart',
+        // Attach the scan photo to the bottle so it shows on the card
+        photo_b64: bottle.photo_b64 || scanB64Compressed || null,
         addedAt: now,
         updatedAt: now,
       }))
@@ -776,7 +806,7 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
 
       {/* ── BOTTLE SCANNER MODAL ────────────────────────────────────────────── */}
       {showScanner && (
-        <Modal onClose={() => { setShowScanner(false); setScanStage('upload'); setScanPreview(null); setScanB64(null); setScanResults(null) }}
+        <Modal onClose={() => { setShowScanner(false); setScanStage('upload'); setScanPreview(null); setScanB64(null); setScanB64Compressed(null); setScanResults(null) }}
           title={scanMode === 'bottle' ? '📷 Scan Bottle' : '🧾 Receipt Scanner'}>
           <ScannerModal
             scanMode={scanMode} setScanMode={setScanMode}
@@ -906,9 +936,34 @@ function BottleCard({ bottle, onEdit, onDelete, onPour, onMake, unitPref }) {
   return (
     <div style={{
       background: 'var(--sc-card)', border: '1px solid var(--sc-border)',
-      borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', gap: 12,
+      borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 0,
       transition: 'border-color 0.15s',
     }}>
+      {/* Bottle photo — shown if captured during scan */}
+      {bottle.photo_b64 && (
+        <div style={{ position: 'relative', width: '100%', height: 160, overflow: 'hidden' }}>
+          <img
+            src={`data:image/jpeg;base64,${bottle.photo_b64}`}
+            alt={bottle.name}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
+          {/* Gradient overlay so text stays readable */}
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0, right: 0, height: 60,
+            background: 'linear-gradient(transparent, var(--sc-card))',
+          }} />
+          {/* Category badge over photo */}
+          <div style={{
+            position: 'absolute', top: 8, right: 8,
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700,
+            color: catColor, background: 'rgba(0,0,0,0.7)', borderRadius: 6,
+            padding: '3px 8px', backdropFilter: 'blur(4px)',
+          }}>
+            {bottle.category}
+          </div>
+        </div>
+      )}
+      <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
       {/* Top row */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div style={{ flex: 1 }}>
@@ -922,13 +977,16 @@ function BottleCard({ bottle, onEdit, onDelete, onPour, onMake, unitPref }) {
             </div>
           )}
         </div>
-        <div style={{
-          fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700,
-          color: catColor, background: catColor + '18', borderRadius: 6,
-          padding: '3px 8px', whiteSpace: 'nowrap', marginLeft: 8,
-        }}>
-          {bottle.category}
-        </div>
+        {/* Hide category badge here when photo is shown — it's displayed over the photo instead */}
+        {!bottle.photo_b64 && (
+          <div style={{
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700,
+            color: catColor, background: catColor + '18', borderRadius: 6,
+            padding: '3px 8px', whiteSpace: 'nowrap', marginLeft: 8,
+          }}>
+            {bottle.category}
+          </div>
+        )}
       </div>
 
       {/* Fill level bar */}
@@ -1011,6 +1069,7 @@ function BottleCard({ bottle, onEdit, onDelete, onPour, onMake, unitPref }) {
           <span style={{ flexShrink: 0, fontSize: 10, opacity: 0.7 }}>↗</span>
         </a>
       )}
+      </div>{/* end inner padding wrapper */}
     </div>
   )
 }
@@ -1102,6 +1161,37 @@ function BottleForm({ form, onChange }) {
       <input style={fi()} placeholder="e.g. https://www.forestridgewinery.com"
         value={form.winery_url || ''}
         onChange={e => onChange({ winery_url: e.target.value })} />
+
+      {label('Bottle Photo (optional)')}
+      <div style={{ marginBottom: 12 }}>
+        {form.photo_b64 ? (
+          <div style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', marginBottom: 6 }}>
+            <img src={`data:image/jpeg;base64,${form.photo_b64}`} alt="Bottle"
+              style={{ width: '100%', height: 120, objectFit: 'cover', display: 'block', borderRadius: 8 }} />
+            <button onClick={() => onChange({ photo_b64: null })}
+              style={{ position: 'absolute', top: 6, right: 6, background: '#000a', border: 'none',
+                color: '#fff', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', fontSize: 12 }}>
+              ✕
+            </button>
+          </div>
+        ) : (
+          <label style={{
+            display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
+            background: 'var(--sc-surface)', border: '1px dashed var(--sc-border)',
+            borderRadius: 8, padding: '10px 14px',
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--sc-muted)',
+          }}>
+            📷 Tap to add bottle photo
+            <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
+              onChange={async e => {
+                const file = e.target.files[0]
+                if (!file) return
+                const b64 = await fileToBase64(file)
+                onChange({ photo_b64: b64 })
+              }} />
+          </label>
+        )}
+      </div>
     </div>
   )
 }
@@ -1847,14 +1937,24 @@ function ScannerModal({
                       fontSize: 15, fontWeight: 700, padding: '4px 8px', outline: 'none',
                     }} />
                 </div>
-                <span style={{
-                  fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700,
-                  padding: '2px 7px', borderRadius: 6,
-                  background: bottle.confidence === 'high' ? 'var(--sc-teal)22' : bottle.confidence === 'low' ? 'var(--sc-red)22' : 'var(--sc-amber)22',
-                  color: bottle.confidence === 'high' ? 'var(--sc-teal)' : bottle.confidence === 'low' ? 'var(--sc-red)' : 'var(--sc-amber)',
-                }}>
-                  {bottle.confidence === 'high' ? '✓ HIGH' : bottle.confidence === 'low' ? '⚠ LOW' : '● MED'}
-                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+                  <span style={{
+                    fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700,
+                    padding: '2px 7px', borderRadius: 6,
+                    background: bottle.confidence === 'high' ? 'var(--sc-teal)22' : bottle.confidence === 'low' ? 'var(--sc-red)22' : 'var(--sc-amber)22',
+                    color: bottle.confidence === 'high' ? 'var(--sc-teal)' : bottle.confidence === 'low' ? 'var(--sc-red)' : 'var(--sc-amber)',
+                  }}>
+                    {bottle.confidence === 'high' ? '✓ HIGH' : bottle.confidence === 'low' ? '⚠ LOW' : '● MED'}
+                  </span>
+                  {/* Photo will be saved with this bottle */}
+                  {scanB64 && (
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
+                      color: 'var(--sc-burgundy)', background: 'var(--sc-burgundy)18',
+                      borderRadius: 4, padding: '2px 6px' }}>
+                      📷 photo
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Row 2: editable fields */}
