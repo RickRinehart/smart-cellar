@@ -7,12 +7,14 @@ import Stripe from 'stripe'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
 
-// Smart Cellar Stripe Price IDs — create in Stripe dashboard and replace below
+// Smart Cellar Stripe Price IDs — confirmed June 2026
+// Solo     = standalone Smart Cellar subscription
+// Cellar+  = Smart Cellar Module (add-on / multi-device tier)
 const PRICE_IDS = {
-  cellar_solo_monthly:   'price_SMART_CELLAR_SOLO_MONTHLY',
-  cellar_solo_annual:    'price_SMART_CELLAR_SOLO_ANNUAL',
-  cellar_family_monthly: 'price_SMART_CELLAR_FAMILY_MONTHLY',
-  cellar_family_annual:  'price_SMART_CELLAR_FAMILY_ANNUAL',
+  cellar_solo_monthly:   'price_1Tg5EDPPshJUzsYXJAGsR1ax',   // Smart Cellar Monthly
+  cellar_solo_annual:    'price_1Tg5FFPPshJUzsYXBfpFL8qr',   // Smart Cellar Annual
+  cellar_family_monthly: 'price_1Tg5FuPPshJUzsYXh7cO2mfp',  // Smart Cellar Module Monthly
+  cellar_family_annual:  'price_1Tg5GHPPshJUzsYXYlpfzqTO',  // Smart Cellar Module Annual
 }
 
 export default async function handler(req, res) {
