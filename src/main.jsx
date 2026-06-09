@@ -141,40 +141,8 @@ function AuthModal({ onClose, onSuccess, initialMode = 'signup' }) {
 // -- Subscription Modal placeholder (Stripe integration - wired same as SK) ----
 function SubscriptionModal({ user, currentTier, onClose, onSubscribed }) {
   const TIERS = [
-    {
-      id: 'cellar_solo',
-      name: 'Smart Cellar',
-      monthly: 4.99,
-      annual: 39.99,
-      annualPerMonth: 3.33,
-      color: 'var(--sc-burgundy)',
-      desc: 'Full inventory, Smart Pour & AI cocktails',
-      features: [
-        'Unlimited bottle inventory',
-        'Smart Pour (Bluetooth scale)',
-        'AI bartender — Make a Drink',
-        'What Can I Make? cocktail discovery',
-        'DIY craft ingredient guides',
-        'Pour history log',
-        '30-day free trial',
-      ],
-    },
-    {
-      id: 'cellar_family',
-      name: 'Smart Cellar Module',
-      monthly: 2.99,
-      annual: 24.99,
-      annualPerMonth: 2.08,
-      color: 'var(--sc-gold)',
-      desc: 'Add-on for Smart Kitchen subscribers',
-      features: [
-        'Everything in Smart Cellar',
-        'Multi-device sync (bar tablet + phone)',
-        'Smart Kitchen meal-pairing integration',
-        'Priority cloud sync across all devices',
-        'Add-on pricing for SK subscribers',
-      ],
-    },
+    { id: 'cellar_solo',   name: 'Solo',   monthly: 4.99, annual: 49.99, color: 'var(--sc-blue)',    desc: 'Individual bar tracker' },
+    { id: 'cellar_family', name: 'Cellar+', monthly: 7.99, annual: 79.99, color: 'var(--sc-gold)',   desc: 'Unlimited devices + cloud sync' },
   ]
   const [billing, setBilling] = useState('monthly')
   const [loading, setLoading] = useState(null)
@@ -218,46 +186,26 @@ function SubscriptionModal({ user, currentTier, onClose, onSubscribed }) {
           ))}
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 20 }}>
           {TIERS.map(t => (
-            <div key={t.id} style={{ background: 'var(--sc-surface)', border: '2px solid ' + t.color + '44',
-              borderRadius: 14, padding: 20, display: 'flex', gap: 20, alignItems: 'flex-start' }}>
-              {/* Left: pricing */}
-              <div style={{ minWidth: 140 }}>
-                <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20,
-                  fontWeight: 700, color: t.color, marginBottom: 2 }}>{t.name}</div>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-                  color: 'var(--sc-muted)', marginBottom: 12, lineHeight: 1.4 }}>{t.desc}</div>
-                <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30,
-                  color: 'var(--sc-text)', lineHeight: 1 }}>
-                  ${billing === 'annual' ? t.annualPerMonth.toFixed(2) : t.monthly}
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-                    color: 'var(--sc-muted)' }}>/mo</span>
-                </div>
-                {billing === 'annual' && (
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-                    color: t.color, marginTop: 2 }}>
-                    ${t.annual}/yr billed annually
-                  </div>
-                )}
-                <button onClick={() => selectTier(t)} disabled={loading === t.id}
-                  style={{ marginTop: 14, width: '100%', padding: '10px', border: 'none',
-                    borderRadius: 8, background: t.color, color: '#fff', fontFamily: FB,
-                    fontWeight: 700, fontSize: 13, cursor: 'pointer',
-                    opacity: loading === t.id ? 0.7 : 1 }}>
-                  {loading === t.id ? 'Loading…' : 'Start Trial'}
-                </button>
+            <div key={t.id} style={{ background: 'var(--sc-surface)', border: '1px solid var(--sc-border)',
+              borderRadius: 14, padding: 20 }}>
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20,
+                fontWeight: 700, color: t.color, marginBottom: 4 }}>{t.name}</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+                color: 'var(--sc-muted)', marginBottom: 12 }}>{t.desc}</div>
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28,
+                color: 'var(--sc-text)', marginBottom: 12 }}>
+                ${billing === 'annual' ? (t.annual / 12).toFixed(2) : t.monthly}
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+                  color: 'var(--sc-muted)' }}>/mo</span>
               </div>
-              {/* Right: features */}
-              <div style={{ flex: 1 }}>
-                {(t.features || []).map((f, i) => (
-                  <div key={i} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
-                    color: 'var(--sc-text)', padding: '4px 0', display: 'flex', gap: 7,
-                    borderBottom: i < t.features.length - 1 ? '1px solid var(--sc-border)' : 'none' }}>
-                    <span style={{ color: t.color, fontWeight: 700 }}>✓</span>{f}
-                  </div>
-                ))}
-              </div>
+              <button onClick={() => selectTier(t)} disabled={loading === t.id}
+                style={{ width: '100%', padding: '10px', border: 'none', borderRadius: 8,
+                  background: t.color, color: '#fff', fontFamily: FB, fontWeight: 700,
+                  fontSize: 13, cursor: 'pointer', opacity: loading === t.id ? 0.7 : 1 }}>
+                {loading === t.id ? 'Loading…' : 'Choose ' + t.name}
+              </button>
             </div>
           ))}
         </div>
@@ -359,51 +307,13 @@ function Root() {
 
   return (
     <>
-      {/* Top-right auth bar */}
-      <div style={{
-        position: 'fixed', top: 0, right: 'max(12px, calc((100vw - 1140px) / 2))',
-        zIndex: 999, display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px',
-      }}>
-        {/* Smart Kitchen cross-link */}
-        <a href="https://smart-kitchen-opal.vercel.app" target="_blank" rel="noopener noreferrer"
-          style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-            color: '#f0a500', textDecoration: 'none', border: '1px solid #f0a50044',
-            borderRadius: 8, padding: '3px 8px', background: '#f0a50010' }}>
-          🍳 Smart Kitchen
-        </a>
-
-        {user ? (
-          <>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-              color: 'var(--sc-muted)', background: 'var(--sc-surface)', padding: '3px 8px',
-              borderRadius: 8, border: '1px solid var(--sc-border)' }}>
-              {tierLabel}
-            </span>
-            {!isActive && !isAdmin && (
-              <button onClick={() => setShowSub(true)}
-                style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, padding: '4px 10px',
-                  borderRadius: 10, border: 'none', background: 'var(--sc-burgundy)',
-                  color: '#fff', cursor: 'pointer', fontWeight: 700 }}>Upgrade</button>
-            )}
-            <button onClick={handleSignOut}
-              style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, padding: '4px 8px',
-                borderRadius: 8, border: '1px solid var(--sc-border)', background: 'transparent',
-                color: 'var(--sc-muted)', cursor: 'pointer' }}>Sign Out</button>
-          </>
-        ) : (
-          <button onClick={() => { setAuthMode('signin'); setShowAuth(true) }}
-            style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, padding: '5px 14px',
-              borderRadius: 10, border: 'none', background: 'var(--sc-burgundy)',
-              color: '#fff', cursor: 'pointer', fontWeight: 700 }}>Sign In</button>
-        )}
-      </div>
-
-      {/* Main App */}
+      {/* Main App — auth controls passed as prop, rendered inside header */}
       <App
         user={user}
         tier={effectiveTier}
         can={can}
         onUpgrade={() => { if (!user) { setAuthMode('signup'); setShowAuth(true) } else setShowSub(true) }}
+        onAuthAction={user ? handleSignOut : () => { setAuthMode('signin'); setShowAuth(true) }}
       />
 
       {/* Auth Modal */}
