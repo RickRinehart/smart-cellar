@@ -210,7 +210,7 @@ function saveLS(key, value) {
 // =============================================================================
 // SMART CELLAR — MAIN APP COMPONENT
 // =============================================================================
-export default function App({ user, tier, can, onUpgrade, onAuthAction }) {
+export default function App({ user, tier, can, onUpgrade }) {
   const isAdmin = user && ADMIN_EMAILS.includes(user.email?.toLowerCase())
 
   // -- Cellar inventory --------------------------------------------------------
@@ -219,6 +219,7 @@ export default function App({ user, tier, can, onUpgrade, onAuthAction }) {
   const [cocktailFavs, setCocktailFavs] = useState(() => loadLS(SC_KEYS.cocktailFavs, []))
   const [bartesianPods, setBartesianPods] = useState(() => loadLS(SC_KEYS.bartesianPods, []))
   const [unitPref, setUnitPref] = useState(() => localStorage.getItem(SC_KEYS.unitPref) || 'oz')
+  const [syncStatus, setSyncStatus] = useState(null)  // null | 'syncing' | 'done' | 'error'
 
   // Persist cellar to localStorage on change
   useEffect(() => { saveLS(SC_KEYS.cellar, cellar) }, [cellar])
@@ -233,6 +234,20 @@ export default function App({ user, tier, can, onUpgrade, onAuthAction }) {
     const interval = setInterval(() => saveCloudData(user.id).catch(() => {}), 90_000)
     return () => clearInterval(interval)
   }, [user])
+
+  // Manual sync with Smart Kitchen
+  async function syncWithSmartKitchen() {
+    if (!user) { alert('Sign in to sync with Smart Kitchen.'); return }
+    setSyncStatus('syncing')
+    try {
+      await saveCloudData(user.id)
+      setSyncStatus('done')
+      setTimeout(() => setSyncStatus(null), 3000)
+    } catch {
+      setSyncStatus('error')
+      setTimeout(() => setSyncStatus(null), 3000)
+    }
+  }
 
   // -- Scanner state (bottle photo / receipt / manual — mirrors SK scan pattern) --
   const [showScanner, setShowScanner]       = useState(false)
@@ -646,48 +661,73 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
         background: C.surface + 'ee', backdropFilter: 'blur(12px)',
         borderBottom: '1px solid ' + C.border,
       }}>
-        {/* Row 1: Logo + auth controls */}
+
+        {/* ── Row 1: Logo · Sync · Unit · Sign In/Out ── */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '0 12px', height: 48, gap: 8,
+          padding: '0 10px', height: 46, gap: 6,
         }}>
-          {/* Logo wordmark */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            <div style={{ fontSize: 22 }}>🍷</div>
-            <div style={{ lineHeight: 1 }}>
-              <span style={{ fontFamily: FD, fontSize: 17, color: C.burgundy, fontWeight: 700 }}>Smart </span>
-              <span style={{ fontFamily: FD, fontSize: 17, color: C.gold, fontWeight: 600 }}>Cellar</span>
+          {/* Logo */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
+            <div style={{ fontSize: 20 }}>🍷</div>
+            <div style={{ lineHeight: 1.1 }}>
+              <span style={{ fontFamily: FD, fontSize: 16, color: C.burgundy, fontWeight: 700 }}>Smart </span>
+              <span style={{ fontFamily: FD, fontSize: 16, color: C.gold, fontWeight: 600 }}>Cellar</span>
             </div>
           </div>
 
-          {/* Right side: SK link + unit toggle + auth (passed via props) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-            <a href="https://smart-kitchen-opal.vercel.app" target="_blank" rel="noopener noreferrer"
-              style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
-                color: '#f0a500', textDecoration: 'none', border: '1px solid #f0a50044',
-                borderRadius: 6, padding: '3px 7px', background: '#f0a50010', whiteSpace: 'nowrap' }}>
-              🍳 SK
-            </a>
+          {/* Right controls */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+
+            {/* ☁ Sync with Smart Kitchen */}
+            {user && (
+              <button onClick={syncWithSmartKitchen} disabled={syncStatus === 'syncing'}
+                style={{
+                  fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700,
+                  padding: '4px 8px', borderRadius: 7, cursor: 'pointer',
+                  whiteSpace: 'nowrap', border: 'none', transition: 'all 0.25s',
+                  background: syncStatus === 'done'    ? C.teal + 'dd'
+                            : syncStatus === 'error'   ? C.red
+                            : syncStatus === 'syncing' ? C.border
+                            : '#f0a50022',
+                  color: syncStatus === 'done'    ? '#0c0e14'
+                       : syncStatus === 'error'   ? '#fff'
+                       : syncStatus === 'syncing' ? C.muted
+                       : '#f0a500',
+                }}>
+                {syncStatus === 'syncing' ? '⟳ Syncing…'
+                  : syncStatus === 'done'  ? '✓ Synced!'
+                  : syncStatus === 'error' ? '✕ Error'
+                  : '☁ Sync with Smart Kitchen'}
+              </button>
+            )}
+
+            {/* Unit toggle */}
             <button onClick={() => setUnitPref(u => u === 'oz' ? 'ml' : 'oz')}
-              style={{ ...bBtn('ghost'), fontSize: 10, padding: '3px 8px' }}>
+              style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+                padding: '3px 8px', borderRadius: 7, border: '1px solid ' + C.border,
+                background: 'transparent', color: C.muted, cursor: 'pointer' }}>
               {unitPref}
             </button>
+
+            {/* Sign In / Out */}
             {onAuthAction && (
               <button onClick={onAuthAction}
-                style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 10, padding: '4px 10px',
-                  borderRadius: 8, border: 'none', background: user ? 'transparent' : C.burgundy,
-                  color: user ? C.muted : '#fff', cursor: 'pointer', fontWeight: 700,
-                  border: user ? '1px solid ' + C.border : 'none', whiteSpace: 'nowrap' }}>
+                style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 10,
+                  padding: '4px 10px', borderRadius: 8, fontWeight: 700,
+                  border: user ? '1px solid ' + C.border : 'none',
+                  background: user ? 'transparent' : C.burgundy,
+                  color: user ? C.muted : '#fff', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                 {user ? 'Sign Out' : 'Sign In'}
               </button>
             )}
           </div>
         </div>
 
-        {/* Row 2: Nav tabs — horizontally scrollable */}
+        {/* ── Row 2: Nav tabs ── */}
         <nav style={{
-          display: 'flex', gap: 4, overflowX: 'auto', padding: '0 8px 6px',
-          scrollbarWidth: 'none', msOverflowStyle: 'none',
+          display: 'flex', gap: 4, overflowX: 'auto',
+          padding: '0 8px 7px', scrollbarWidth: 'none',
           WebkitOverflowScrolling: 'touch',
         }}>
           {[
@@ -702,7 +742,7 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
               style={{
                 flexShrink: 0, border: 'none', borderRadius: 20, cursor: 'pointer',
                 fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: 11,
-                padding: '5px 12px', whiteSpace: 'nowrap', transition: 'all 0.15s',
+                padding: '5px 13px', whiteSpace: 'nowrap', transition: 'all 0.15s',
                 background: view === id ? C.burgundy : C.surface,
                 color: view === id ? '#fff' : C.muted,
                 outline: view === id ? 'none' : '1px solid ' + C.border,
@@ -713,21 +753,19 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
         </nav>
       </header>
 
-      {/* SK cross-promo — slim banner, only shown when arriving from Smart Kitchen */}
+      {/* ── SMART KITCHEN CROSS-PROMO BANNER ────────────────────────────────── */}
       {skTrialSource && (
         <div style={{
           background: '#f0a50018', borderBottom: '1px solid #f0a50044',
-          padding: '6px 12px', display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between', gap: 8,
+          padding: '10px 20px', display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between', gap: 12,
         }}>
-          <div style={{ fontFamily: FM, fontSize: 10, color: '#f0a500' }}>
-            🍳 30-day Smart Cellar trial active
+          <div style={{ fontFamily: FM, fontSize: 12, color: '#f0a500' }}>
+            🍳 Welcome from Smart Kitchen! Your 30-day Smart Cellar trial is active.
           </div>
           <a href="https://smart-kitchen-opal.vercel.app" target="_blank" rel="noopener noreferrer"
-            style={{ fontFamily: FM, fontSize: 10, color: '#f0a500', textDecoration: 'none',
-              border: '1px solid #f0a50044', borderRadius: 6, padding: '2px 8px',
-              background: '#f0a50010', whiteSpace: 'nowrap' }}>
-            ← SK
+            style={{ ...bBtn('sk-promo'), fontSize: 11, padding: '4px 12px', textDecoration: 'none' }}>
+            ← Back to Smart Kitchen
           </a>
         </div>
       )}
