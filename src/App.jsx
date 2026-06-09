@@ -221,6 +221,14 @@ export default function App({ user, tier, can, onUpgrade, onAuthAction }) {
   const [unitPref, setUnitPref] = useState(() => localStorage.getItem(SC_KEYS.unitPref) || 'oz')
   const [syncStatus, setSyncStatus] = useState(null)  // null | 'syncing' | 'done' | 'error'
 
+  // -- Theme & accessibility (mirrors SK pattern, sc_ keys) --------------------
+  const [isDark, setIsDark] = useState(() => {
+    try { return localStorage.getItem(SC_KEYS.darkMode) !== '0' } catch { return true }
+  })
+  const [seniorMode, setSeniorMode] = useState(() => {
+    try { return localStorage.getItem('sc_seniorMode') === '1' } catch { return false }
+  })
+
   // Persist cellar to localStorage on change
   useEffect(() => { saveLS(SC_KEYS.cellar, cellar) }, [cellar])
   useEffect(() => { saveLS(SC_KEYS.pourLog, pourLog) }, [pourLog])
@@ -228,12 +236,36 @@ export default function App({ user, tier, can, onUpgrade, onAuthAction }) {
   useEffect(() => { saveLS(SC_KEYS.bartesianPods, bartesianPods) }, [bartesianPods])
   useEffect(() => { localStorage.setItem(SC_KEYS.unitPref, unitPref) }, [unitPref])
 
+  // Apply theme class to body on mount and toggle
+  useEffect(() => {
+    document.body.classList.toggle('sc-dark', isDark)
+    document.body.classList.toggle('sc-light', !isDark)
+    localStorage.setItem(SC_KEYS.darkMode, isDark ? '1' : '0')
+  }, [isDark])
+
+  // Apply senior mode class to body
+  useEffect(() => {
+    document.body.classList.toggle('sc-senior', seniorMode)
+    localStorage.setItem('sc_seniorMode', seniorMode ? '1' : '0')
+  }, [seniorMode])
+
   // Auto cloud-save every 90s when signed in (mirrors SK pattern)
   useEffect(() => {
     if (!user) return
     const interval = setInterval(() => saveCloudData(user.id).catch(() => {}), 90_000)
     return () => clearInterval(interval)
   }, [user])
+
+  // Theme toggle
+  function toggleTheme() { setIsDark(d => !d) }
+
+  // Senior / large text toggle (reloads to reapply all font sizes)
+  function toggleSenior() {
+    const next = !seniorMode
+    setSeniorMode(next)
+    localStorage.setItem('sc_seniorMode', next ? '1' : '0')
+    document.body.classList.toggle('sc-senior', next)
+  }
 
   // Manual sync with Smart Kitchen
   async function syncWithSmartKitchen() {
@@ -727,6 +759,33 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
               {label}
             </button>
           ))}
+
+          {/* ── Accessibility toggles in nav row ── */}
+          <button onClick={toggleTheme}
+            title={isDark ? 'Light Mode' : 'Dark Mode'}
+            style={{
+              flexShrink: 0, borderRadius: 20, cursor: 'pointer',
+              fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: 13,
+              padding: '4px 10px', whiteSpace: 'nowrap', transition: 'all 0.15s',
+              border: '1px solid ' + C.border,
+              background: 'transparent', color: C.muted,
+              marginLeft: 4,
+            }}>
+            {isDark ? '☀️' : '🌙'}
+          </button>
+
+          <button onClick={toggleSenior}
+            title={seniorMode ? 'Normal Text' : 'Large Text'}
+            style={{
+              flexShrink: 0, borderRadius: 20, cursor: 'pointer',
+              fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: 12,
+              padding: '4px 10px', whiteSpace: 'nowrap', transition: 'all 0.15s',
+              border: '1px solid ' + (seniorMode ? C.gold : C.border),
+              background: seniorMode ? C.gold + '22' : 'transparent',
+              color: seniorMode ? C.gold : C.muted,
+            }}>
+            {seniorMode ? 'Aa✓' : 'Aa'}
+          </button>
 
           {/* ☁ Sync with Smart Kitchen — lives in nav row with room to breathe */}
           {user && (
