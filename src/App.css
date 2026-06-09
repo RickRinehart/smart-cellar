@@ -111,62 +111,47 @@ body {
 .sc-font-mono    { font-family: 'JetBrains Mono', monospace; }
 
 /* -- Senior / large text mode ---------------------------------- */
-/* SC uses inline React styles, so we need !important to override them */
+/* Uses !important throughout to override inline React styles */
 body.sc-senior {
-  font-size: 18px !important;
+  font-size: 22px !important;
 }
 
-/* All text elements scale up ~25% */
-body.sc-senior button,
+/* Every element inherits the larger base */
+body.sc-senior * {
+  font-size: inherit !important;
+  line-height: 1.5 !important;
+}
+
+/* Nav tabs — bigger pills */
+body.sc-senior nav button {
+  font-size: 15px !important;
+  padding: 9px 18px !important;
+}
+
+/* All buttons — taller tap targets */
+body.sc-senior button {
+  font-size: 18px !important;
+  min-height: 52px !important;
+  padding: 14px 18px !important;
+}
+
+/* Inputs, selects, textareas */
 body.sc-senior input,
 body.sc-senior select,
-body.sc-senior textarea,
-body.sc-senior label {
-  font-size: 16px !important;
-  min-height: 40px;
-}
-
-/* Bottle card name */
-body.sc-senior * {
-  font-size: inherit;
-}
-
-/* Nav tabs */
-body.sc-senior nav button {
-  font-size: 14px !important;
-  padding: 7px 16px !important;
-}
-
-/* Bottle card title (Cormorant Garamond headings) */
-body.sc-senior [style*="Cormorant"] {
-  font-size: 1.4em !important;
-}
-
-/* Monospace labels (JetBrains Mono) */
-body.sc-senior [style*="JetBrains"] {
-  font-size: 13px !important;
-}
-
-/* Action buttons */
-body.sc-senior [style*="Pour"],
-body.sc-senior [style*="Make"] {
-  font-size: 16px !important;
-  padding: 14px !important;
-}
-
-/* Form inputs */
-body.sc-senior input[type="text"],
-body.sc-senior input[type="email"],
-body.sc-senior input[type="password"],
-body.sc-senior input[type="number"],
 body.sc-senior textarea {
-  font-size: 16px !important;
-  padding: 12px !important;
+  font-size: 18px !important;
+  padding: 14px !important;
+  min-height: 52px !important;
 }
 
-/* Modal titles */
-body.sc-senior h1, body.sc-senior h2, body.sc-senior h3 {
-  font-size: 1.5em !important;
+/* Meta tags / badges (small pill text) */
+body.sc-senior span {
+  font-size: 15px !important;
+}
+
+/* Modal overlay text */
+body.sc-senior div {
+  font-size: inherit !important;
 }
 
 /* -- Utility --------------------------------------------------- */
