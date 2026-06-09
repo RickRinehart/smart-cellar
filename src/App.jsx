@@ -210,7 +210,7 @@ function saveLS(key, value) {
 // =============================================================================
 // SMART CELLAR — MAIN APP COMPONENT
 // =============================================================================
-export default function App({ user, tier, can, onUpgrade }) {
+export default function App({ user, tier, can, onUpgrade, onAuthAction }) {
   const isAdmin = user && ADMIN_EMAILS.includes(user.email?.toLowerCase())
 
   // -- Cellar inventory --------------------------------------------------------
