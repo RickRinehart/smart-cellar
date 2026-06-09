@@ -359,6 +359,7 @@ function Root() {
         tier={effectiveTier}
         can={can}
         onUpgrade={() => { if (!user) { setAuthMode('signup'); setShowAuth(true) } else setShowSub(true) }}
+        onAuthAction={user ? handleSignOut : () => { setAuthMode('signin'); setShowAuth(true) }}
       />
 
       {/* Auth Modal */}
