@@ -679,30 +679,6 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
           {/* Right controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
 
-            {/* ☁ Sync with Smart Kitchen */}
-            {user && (
-              <button onClick={syncWithSmartKitchen} disabled={syncStatus === 'syncing'}
-                title="Sync cellar inventory with Smart Kitchen"
-                style={{
-                  fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700,
-                  padding: '4px 9px', borderRadius: 7, cursor: 'pointer',
-                  whiteSpace: 'nowrap', border: 'none', transition: 'all 0.25s',
-                  background: syncStatus === 'done'    ? C.teal + 'dd'
-                            : syncStatus === 'error'   ? C.red
-                            : syncStatus === 'syncing' ? C.border
-                            : '#f0a50022',
-                  color: syncStatus === 'done'    ? '#0c0e14'
-                       : syncStatus === 'error'   ? '#fff'
-                       : syncStatus === 'syncing' ? C.muted
-                       : '#f0a500',
-                }}>
-                {syncStatus === 'syncing' ? '⟳ Syncing…'
-                  : syncStatus === 'done'  ? '✓ Synced'
-                  : syncStatus === 'error' ? '✕ Error'
-                  : '☁ SK Sync'}
-              </button>
-            )}
-
             {/* Unit toggle */}
             <button onClick={() => setUnitPref(u => u === 'oz' ? 'ml' : 'oz')}
               style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
@@ -751,6 +727,32 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
               {label}
             </button>
           ))}
+
+          {/* ☁ Sync with Smart Kitchen — lives in nav row with room to breathe */}
+          {user && (
+            <button onClick={syncWithSmartKitchen} disabled={syncStatus === 'syncing'}
+              title="Push your cellar inventory to Smart Kitchen for drink pairing"
+              style={{
+                flexShrink: 0, border: 'none', borderRadius: 20, cursor: 'pointer',
+                fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: 11,
+                padding: '5px 14px', whiteSpace: 'nowrap', transition: 'all 0.2s',
+                background: syncStatus === 'done'    ? C.teal
+                          : syncStatus === 'error'   ? C.red
+                          : syncStatus === 'syncing' ? C.border
+                          : '#f0a50030',
+                color: syncStatus === 'done'    ? '#0c0e14'
+                     : syncStatus === 'error'   ? '#fff'
+                     : syncStatus === 'syncing' ? C.muted
+                     : '#f0a500',
+                outline: syncStatus ? 'none' : '1px solid #f0a50055',
+                marginLeft: 4,
+              }}>
+              {syncStatus === 'syncing' ? '⟳ Syncing…'
+                : syncStatus === 'done'  ? '✓ Synced!'
+                : syncStatus === 'error' ? '✕ Error'
+                : '☁ Sync with Smart Kitchen'}
+            </button>
+          )}
         </nav>
       </header>
 
