@@ -684,8 +684,14 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
   // ==========================================================================
   // RENDER
   // ==========================================================================
+  // Font scale: normal = 1.0, senior = 1.28 (~18px base from 14px)
+  const fontScale = seniorMode ? 1.28 : 1.0
+
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, color: C.text, fontFamily: FB }}>
+    <div style={{
+      minHeight: '100vh', background: C.bg, color: C.text, fontFamily: FB,
+      fontSize: seniorMode ? '18px' : '14px',
+    }}>
 
       {/* ── HEADER ──────────────────────────────────────────────────────────── */}
       <header style={{
@@ -892,6 +898,7 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
                   onPour={() => openPour(bottle)}
                   onMake={() => makeDrink(bottle)}
                   unitPref={unitPref}
+                  seniorMode={seniorMode}
                 />
               ))}
             </div>
@@ -1052,7 +1059,7 @@ function Modal({ onClose, title, children }) {
 }
 
 // -- Bottle Card ---------------------------------------------------------------
-function BottleCard({ bottle, onEdit, onDelete, onPour, onMake, unitPref }) {
+function BottleCard({ bottle, onEdit, onDelete, onPour, onMake, unitPref, seniorMode = false }) {
   const pct = bottle.remaining_pct ?? 100
   const catColor = CAT_COLORS[bottle.category] || 'var(--sc-muted)'
   const isLow = pct < 20
@@ -1093,7 +1100,7 @@ function BottleCard({ bottle, onEdit, onDelete, onPour, onMake, unitPref }) {
         {/* Top row: name + category badge (badge hidden when photo present) */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 18, fontWeight: 700,
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: seniorMode ? 24 : 18, fontWeight: 700,
               color: 'var(--sc-text)', lineHeight: 1.2, marginBottom: 2 }}>
               {bottle.name}
             </div>
@@ -1169,10 +1176,10 @@ function BottleCard({ bottle, onEdit, onDelete, onPour, onMake, unitPref }) {
 
         {/* Action buttons */}
         <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-          <button onClick={onPour} style={{ ...bBtn('primary', { flex: 1, fontSize: 12, padding: '7px 10px' }) }}>
+          <button onClick={onPour} style={{ ...bBtn('primary', { flex: 1, fontSize: seniorMode ? 16 : 12, padding: seniorMode ? '12px 10px' : '7px 10px' }) }}>
             ⚖ Pour
           </button>
-          <button onClick={onMake} style={{ ...bBtn('gold', { flex: 1, fontSize: 12, padding: '7px 10px' }) }}>
+          <button onClick={onMake} style={{ ...bBtn('gold', { flex: 1, fontSize: seniorMode ? 16 : 12, padding: seniorMode ? '12px 10px' : '7px 10px' }) }}>
             🍹 Make
           </button>
           <button onClick={onEdit} style={{ ...bBtn('ghost', { fontSize: 12, padding: '7px 10px' }) }}>✏</button>
