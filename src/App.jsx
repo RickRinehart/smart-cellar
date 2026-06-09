@@ -222,6 +222,15 @@ export default function App({ user, tier, can, onUpgrade, onAuthAction }) {
   const [bartesianPods, setBartesianPods] = useState(() => loadLS(SC_KEYS.bartesianPods, []))
   const [unitPref, setUnitPref] = useState(() => localStorage.getItem(SC_KEYS.unitPref) || 'oz')
 
+  // -- Theme, senior mode, sync state ------------------------------------------
+  const [isDark, setIsDark] = useState(() => {
+    try { return localStorage.getItem(SC_KEYS.darkMode) !== '0' } catch { return true }
+  })
+  const [seniorMode, setSeniorMode] = useState(() => {
+    try { return localStorage.getItem('sc_seniorMode') === '1' } catch { return false }
+  })
+  const [syncStatus, setSyncStatus] = useState(null)
+
   // Persist cellar to localStorage on change + auto-save to cloud if signed in
   useEffect(() => {
     saveLS(SC_KEYS.cellar, cellar)
@@ -237,6 +246,58 @@ export default function App({ user, tier, can, onUpgrade, onAuthAction }) {
   useEffect(() => { saveLS(SC_KEYS.cocktailFavs, cocktailFavs) }, [cocktailFavs])
   useEffect(() => { saveLS(SC_KEYS.bartesianPods, bartesianPods) }, [bartesianPods])
   useEffect(() => { localStorage.setItem(SC_KEYS.unitPref, unitPref) }, [unitPref])
+
+  // Apply theme on change
+  useEffect(() => {
+    document.body.classList.toggle('sc-dark', isDark)
+    document.body.classList.toggle('sc-light', !isDark)
+    localStorage.setItem(SC_KEYS.darkMode, isDark ? '1' : '0')
+  }, [isDark])
+
+  // Apply senior mode on change
+  useEffect(() => {
+    document.body.classList.toggle('sc-senior', seniorMode)
+    localStorage.setItem('sc_seniorMode', seniorMode ? '1' : '0')
+  }, [seniorMode])
+
+  // Listen for cloud data loaded — refresh React state from localStorage
+  useEffect(() => {
+    function onCloudLoaded() {
+      const c = loadLS(SC_KEYS.cellar, null)
+      if (c !== null) setCellar(c)
+      const pl = loadLS(SC_KEYS.pourLog, null)
+      if (pl !== null) setPourLog(pl)
+      const cf = loadLS(SC_KEYS.cocktailFavs, null)
+      if (cf !== null) setCocktailFavs(cf)
+      const u = localStorage.getItem(SC_KEYS.unitPref)
+      if (u) setUnitPref(u)
+    }
+    window.addEventListener('sc-cloud-loaded', onCloudLoaded)
+    return () => window.removeEventListener('sc-cloud-loaded', onCloudLoaded)
+  }, [])
+
+  // -- Theme & senior toggles ---------------------------------------------------
+  function toggleTheme() { setIsDark(d => !d) }
+  function toggleSenior() {
+    const next = !seniorMode
+    setSeniorMode(next)
+    document.body.classList.toggle('sc-senior', next)
+    localStorage.setItem('sc_seniorMode', next ? '1' : '0')
+  }
+
+  // -- Sync with Smart Kitchen --------------------------------------------------
+  async function syncWithSmartKitchen() {
+    if (!user) { alert('Sign in to sync with Smart Kitchen.'); return }
+    setSyncStatus('syncing')
+    try {
+      await saveCloudData(user.id)
+      setSyncStatus('done')
+      setTimeout(() => setSyncStatus(null), 3000)
+    } catch {
+      setSyncStatus('error')
+      setTimeout(() => setSyncStatus(null), 3000)
+    }
+  }
 
   // Auto cloud-save every 90s when signed in (mirrors SK pattern)
   useEffect(() => {
