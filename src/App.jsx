@@ -210,6 +210,8 @@ function saveLS(key, value) {
 // =============================================================================
 // SMART CELLAR — MAIN APP COMPONENT
 // =============================================================================
+// CRITICAL: onAuthAction MUST stay in this signature — removing it crashes the app
+// It is passed from main.jsx Root and used in the header Sign In/Out button
 export default function App({ user, tier, can, onUpgrade, onAuthAction }) {
   const isAdmin = user && ADMIN_EMAILS.includes(user.email?.toLowerCase())
 
