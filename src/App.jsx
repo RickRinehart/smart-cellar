@@ -86,6 +86,8 @@ async function callClaude({ system, prompt, imageBase64, imageType, maxTokens = 
   // Must include x-api-key and anthropic-dangerous-direct-browser-access for browser calls
   // (mirrors Smart Kitchen callClaude pattern exactly)
   const apiKey = import.meta.env?.VITE_ANTHROPIC_KEY || ''
+  if (!apiKey) console.error('⚠ VITE_ANTHROPIC_KEY is empty — check Vercel env vars')
+  else console.log('✓ API key present, length:', apiKey.length)
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -102,7 +104,12 @@ async function callClaude({ system, prompt, imageBase64, imageType, maxTokens = 
     }),
     signal: AbortSignal.timeout(30000),
   })
-  if (!res.ok) throw new Error('API error ' + res.status)
+  if (!res.ok) {
+    let errBody = ''
+    try { errBody = await res.text() } catch {}
+    console.error('Anthropic API error:', res.status, errBody)
+    throw new Error('API ' + res.status + (errBody ? ': ' + errBody.slice(0, 100) : ''))
+  }
   const data = await res.json()
   if (data.error) throw new Error(data.error.message || 'API error')
   return (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim()
@@ -623,8 +630,9 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
       const clean = raw.replace(/```json|```/g, '').trim()
       const s = clean.indexOf('{'), e = clean.lastIndexOf('}')
       setDiscoverResult(JSON.parse(clean.slice(s, e + 1)))
-    } catch {
-      setDiscoverResult({ error: 'Could not discover cocktails. Please try again.' })
+    } catch (err) {
+      console.error('Discover error:', err)
+      setDiscoverResult({ error: 'Error: ' + (err?.message || String(err)) })
     }
     setDiscoverLoading(false)
   }
