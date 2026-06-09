@@ -563,7 +563,8 @@ Suggest 3 cocktails ranging from classic to creative. Prefer recipes using ingre
       const s = clean.indexOf('{'), e = clean.lastIndexOf('}')
       setMakeResult(JSON.parse(clean.slice(s, e + 1)))
     } catch (err) {
-      setMakeResult({ error: 'Could not generate cocktails. Please try again.' })
+      console.error('Make drink error:', err)
+      setMakeResult({ error: 'Could not generate cocktails: ' + (err.message || 'Unknown error') })
     }
     setMakeLoading(false)
   }
@@ -589,9 +590,11 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
       })
       const clean = raw.replace(/```json|```/g, '').trim()
       const s = clean.indexOf('{'), e = clean.lastIndexOf('}')
+      if (s === -1) throw new Error('No JSON in response: ' + clean.slice(0, 100))
       setDiscoverResult(JSON.parse(clean.slice(s, e + 1)))
-    } catch {
-      setDiscoverResult({ error: 'Could not discover cocktails. Please try again.' })
+    } catch (err) {
+      console.error('Discover cocktails error:', err)
+      setDiscoverResult({ error: 'Could not discover cocktails: ' + (err.message || 'Unknown error') })
     }
     setDiscoverLoading(false)
   }
