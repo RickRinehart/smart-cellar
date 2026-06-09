@@ -671,50 +671,114 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
         position: 'sticky', top: 0, zIndex: 200,
         background: C.surface + 'ee', backdropFilter: 'blur(12px)',
         borderBottom: '1px solid ' + C.border,
-        padding: '0 20px', display: 'flex', alignItems: 'center',
-        height: 58, gap: 16,
       }}>
-        {/* Logo wordmark */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ fontSize: 26 }}>🍷</div>
-          <div>
-            <div style={{ fontFamily: FD, fontSize: 20, color: C.burgundy, lineHeight: 1, fontWeight: 700 }}>
-              Smart
+        {/* ── Row 1: Logo · Unit · Sign In/Out (no overflow) ── */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '0 10px', height: 46, gap: 6,
+        }}>
+          {/* Logo */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
+            <div style={{ fontSize: 20 }}>🍷</div>
+            <div style={{ lineHeight: 1.1 }}>
+              <span style={{ fontFamily: FD, fontSize: 16, color: C.burgundy, fontWeight: 700 }}>Smart </span>
+              <span style={{ fontFamily: FD, fontSize: 16, color: C.gold, fontWeight: 600 }}>Cellar</span>
             </div>
-            <div style={{ fontFamily: FD, fontSize: 20, color: C.gold, lineHeight: 1, fontWeight: 600 }}>
-              Cellar
-            </div>
+          </div>
+          {/* Right: unit + auth */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            <button onClick={() => setUnitPref(u => u === 'oz' ? 'ml' : 'oz')}
+              style={{ fontFamily: FM, fontSize: 10, padding: '3px 8px', borderRadius: 7,
+                border: '1px solid ' + C.border, background: 'transparent',
+                color: C.muted, cursor: 'pointer' }}>
+              {unitPref}
+            </button>
+            {onAuthAction && (
+              <button onClick={onAuthAction}
+                style={{ fontFamily: FB, fontSize: 10, padding: '4px 10px', borderRadius: 8,
+                  fontWeight: 700, whiteSpace: 'nowrap', cursor: 'pointer',
+                  border: user ? '1px solid ' + C.border : 'none',
+                  background: user ? 'transparent' : C.burgundy,
+                  color: user ? C.muted : '#fff' }}>
+                {user ? 'Sign Out' : 'Sign In'}
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Nav */}
-        <nav style={{ display: 'flex', gap: 4, marginLeft: 8, flex: 1, overflowX: 'auto' }}>
+        {/* ── Row 2: Nav tabs + Aa + theme + Sync (horizontally scrollable) ── */}
+        <nav style={{
+          display: 'flex', gap: 4, overflowX: 'auto',
+          padding: '0 8px 7px', scrollbarWidth: 'none',
+          WebkitOverflowScrolling: 'touch',
+        }}>
           {[
-            { id: 'cellar',   label: '🍾 My Cellar' },
-            { id: 'pour',     label: '⚖ Pour & Track' },
-            { id: 'make',     label: '🍹 Make a Drink' },
-            { id: 'discover', label: '✨ What Can I Make?' },
-            { id: 'diy',      label: '🧪 DIY Ingredients' },
-            { id: 'log',      label: '📋 Pour Log' },
+            { id: 'cellar',   label: '🍾 Cellar' },
+            { id: 'pour',     label: '⚖ Pour' },
+            { id: 'make',     label: '🍹 Make' },
+            { id: 'discover', label: '✨ Discover' },
+            { id: 'diy',      label: '🧪 DIY' },
+            { id: 'log',      label: '📋 Log' },
           ].map(({ id, label }) => (
             <button key={id} onClick={() => setView(id)}
               style={{
-                ...bBtn(view === id ? 'primary' : 'ghost'),
-                fontSize: 12, padding: '6px 12px', whiteSpace: 'nowrap',
-                opacity: view === id ? 1 : 0.8,
-                background: view === id ? C.burgundy : 'transparent',
-                border: view === id ? 'none' : '1px solid ' + C.border,
+                flexShrink: 0, border: 'none', borderRadius: 20, cursor: 'pointer',
+                fontFamily: FB, fontWeight: 600, fontSize: 11,
+                padding: '5px 13px', whiteSpace: 'nowrap', transition: 'all 0.15s',
+                background: view === id ? C.burgundy : C.surface,
+                color: view === id ? '#fff' : C.muted,
+                outline: view === id ? 'none' : '1px solid ' + C.border,
               }}>
               {label}
             </button>
           ))}
-        </nav>
 
-        {/* Unit toggle */}
-        <button onClick={() => setUnitPref(u => u === 'oz' ? 'ml' : 'oz')}
-          style={{ ...bBtn('ghost'), fontSize: 11, padding: '4px 10px' }}>
-          {unitPref === 'oz' ? 'ml' : 'oz'}
-        </button>
+          {/* Theme toggle */}
+          <button onClick={toggleTheme} title={isDark ? 'Light Mode' : 'Dark Mode'}
+            style={{ flexShrink: 0, borderRadius: 20, cursor: 'pointer', fontSize: 13,
+              padding: '4px 10px', whiteSpace: 'nowrap', transition: 'all 0.15s',
+              border: '1px solid ' + C.border, background: 'transparent', color: C.muted,
+              marginLeft: 4 }}>
+            {isDark ? '☀️' : '🌙'}
+          </button>
+
+          {/* Large text toggle */}
+          <button onClick={toggleSenior} title={seniorMode ? 'Normal Text' : 'Large Text'}
+            style={{ flexShrink: 0, borderRadius: 20, cursor: 'pointer',
+              fontFamily: FB, fontWeight: 700, fontSize: 12,
+              padding: '4px 10px', whiteSpace: 'nowrap', transition: 'all 0.15s',
+              border: '1px solid ' + (seniorMode ? C.gold : C.border),
+              background: seniorMode ? C.gold + '22' : 'transparent',
+              color: seniorMode ? C.gold : C.muted }}>
+            {seniorMode ? 'Aa✓' : 'Aa'}
+          </button>
+
+          {/* Sync with Smart Kitchen */}
+          {user && (
+            <button onClick={syncWithSmartKitchen} disabled={syncStatus === 'syncing'}
+              title="Push your cellar inventory to Smart Kitchen for drink pairing"
+              style={{
+                flexShrink: 0, border: 'none', borderRadius: 20, cursor: 'pointer',
+                fontFamily: FB, fontWeight: 700, fontSize: 11,
+                padding: '5px 14px', whiteSpace: 'nowrap', transition: 'all 0.2s',
+                background: syncStatus === 'done'    ? C.teal
+                          : syncStatus === 'error'   ? C.red
+                          : syncStatus === 'syncing' ? C.border
+                          : '#f0a50030',
+                color: syncStatus === 'done'    ? '#0c0e14'
+                     : syncStatus === 'error'   ? '#fff'
+                     : syncStatus === 'syncing' ? C.muted
+                     : '#f0a500',
+                outline: syncStatus ? 'none' : '1px solid #f0a50055',
+                marginLeft: 4,
+              }}>
+              {syncStatus === 'syncing' ? '⟳ Syncing…'
+                : syncStatus === 'done'  ? '✓ Synced!'
+                : syncStatus === 'error' ? '✕ Error'
+                : '☁ Sync with Smart Kitchen'}
+            </button>
+          )}
+        </nav>
       </header>
 
       {/* ── SMART KITCHEN CROSS-PROMO BANNER ────────────────────────────────── */}
