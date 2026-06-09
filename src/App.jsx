@@ -7,7 +7,6 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { supabase, SC_KEYS, loadCloudData, saveCloudData } from './supabaseClient'
 import { useBLEScale, gramsToMl, mlToOz, ozToMl } from './hooks/useBLEScale'
 import './App.css'
-import GuidedCocktailMaker from './GuidedCocktailMaker'
 
 // -- File helpers (mirrors Smart Kitchen pattern) --------------------------------
 function fileToBase64(f) {
@@ -211,46 +210,31 @@ function saveLS(key, value) {
 // =============================================================================
 // SMART CELLAR — MAIN APP COMPONENT
 // =============================================================================
-export default function App({ user, tier, can, onUpgrade, onAuthAction }) {
+export default function App({ user, tier, can, onUpgrade }) {
   const isAdmin = user && ADMIN_EMAILS.includes(user.email?.toLowerCase())
 
   // -- Cellar inventory --------------------------------------------------------
   const [cellar, setCellar] = useState(() => loadLS(SC_KEYS.cellar, []))
   const [pourLog, setPourLog] = useState(() => loadLS(SC_KEYS.pourLog, []))
   const [cocktailFavs, setCocktailFavs] = useState(() => loadLS(SC_KEYS.cocktailFavs, []))
-  const [showGuidedMaker, setShowGuidedMaker] = useState(false)
-  const [guidedCocktail, setGuidedCocktail]   = useState(null)
   const [bartesianPods, setBartesianPods] = useState(() => loadLS(SC_KEYS.bartesianPods, []))
   const [unitPref, setUnitPref] = useState(() => localStorage.getItem(SC_KEYS.unitPref) || 'oz')
-  const [syncStatus, setSyncStatus] = useState(null)  // null | 'syncing' | 'done' | 'error'
 
-  // -- Theme & accessibility (mirrors SK pattern, sc_ keys) --------------------
-  const [isDark, setIsDark] = useState(() => {
-    try { return localStorage.getItem(SC_KEYS.darkMode) !== '0' } catch { return true }
-  })
-  const [seniorMode, setSeniorMode] = useState(() => {
-    try { return localStorage.getItem('sc_seniorMode') === '1' } catch { return false }
-  })
-
-  // Persist cellar to localStorage on change
-  useEffect(() => { saveLS(SC_KEYS.cellar, cellar) }, [cellar])
+  // Persist cellar to localStorage on change + auto-save to cloud if signed in
+  useEffect(() => {
+    saveLS(SC_KEYS.cellar, cellar)
+    // Debounced cloud save — 3s after last change
+    const t = setTimeout(() => {
+      supabase.auth.getUser().then(({ data }) => {
+        if (data?.user) saveCloudData(data.user.id).catch(() => {})
+      })
+    }, 3000)
+    return () => clearTimeout(t)
+  }, [cellar])
   useEffect(() => { saveLS(SC_KEYS.pourLog, pourLog) }, [pourLog])
   useEffect(() => { saveLS(SC_KEYS.cocktailFavs, cocktailFavs) }, [cocktailFavs])
   useEffect(() => { saveLS(SC_KEYS.bartesianPods, bartesianPods) }, [bartesianPods])
   useEffect(() => { localStorage.setItem(SC_KEYS.unitPref, unitPref) }, [unitPref])
-
-  // Apply theme class to body on mount and toggle
-  useEffect(() => {
-    document.body.classList.toggle('sc-dark', isDark)
-    document.body.classList.toggle('sc-light', !isDark)
-    localStorage.setItem(SC_KEYS.darkMode, isDark ? '1' : '0')
-  }, [isDark])
-
-  // Apply senior mode class to body
-  useEffect(() => {
-    document.body.classList.toggle('sc-senior', seniorMode)
-    localStorage.setItem('sc_seniorMode', seniorMode ? '1' : '0')
-  }, [seniorMode])
 
   // Auto cloud-save every 90s when signed in (mirrors SK pattern)
   useEffect(() => {
@@ -259,36 +243,22 @@ export default function App({ user, tier, can, onUpgrade, onAuthAction }) {
     return () => clearInterval(interval)
   }, [user])
 
-  // Theme toggle
-  function toggleTheme() { setIsDark(d => !d) }
-
-  // Senior / large text toggle (reloads to reapply all font sizes)
-  function toggleSenior() {
-    const next = !seniorMode
-    setSeniorMode(next)
-    localStorage.setItem('sc_seniorMode', next ? '1' : '0')
-    document.body.classList.toggle('sc-senior', next)
-  }
-
-  // Open guided cocktail maker
-  function openGuidedMaker(cocktail) {
-    setGuidedCocktail(cocktail)
-    setShowGuidedMaker(true)
-  }
-
-  // Manual sync with Smart Kitchen
-  async function syncWithSmartKitchen() {
-    if (!user) { alert('Sign in to sync with Smart Kitchen.'); return }
-    setSyncStatus('syncing')
-    try {
-      await saveCloudData(user.id)
-      setSyncStatus('done')
-      setTimeout(() => setSyncStatus(null), 3000)
-    } catch {
-      setSyncStatus('error')
-      setTimeout(() => setSyncStatus(null), 3000)
+  // Listen for cloud data loaded event — re-read localStorage into React state
+  // This fires when the user signs in on a new device and cloud data is fetched
+  useEffect(() => {
+    function onCloudLoaded() {
+      const cloudCellar = loadLS(SC_KEYS.cellar, null)
+      if (cloudCellar !== null) setCellar(cloudCellar)
+      const cloudLog = loadLS(SC_KEYS.pourLog, null)
+      if (cloudLog !== null) setPourLog(cloudLog)
+      const cloudFavs = loadLS(SC_KEYS.cocktailFavs, null)
+      if (cloudFavs !== null) setCocktailFavs(cloudFavs)
+      const cloudUnit = localStorage.getItem(SC_KEYS.unitPref)
+      if (cloudUnit) setUnitPref(cloudUnit)
     }
-  }
+    window.addEventListener('sc-cloud-loaded', onCloudLoaded)
+    return () => window.removeEventListener('sc-cloud-loaded', onCloudLoaded)
+  }, [])
 
   // -- Scanner state (bottle photo / receipt / manual — mirrors SK scan pattern) --
   const [showScanner, setShowScanner]       = useState(false)
@@ -563,8 +533,7 @@ Suggest 3 cocktails ranging from classic to creative. Prefer recipes using ingre
       const s = clean.indexOf('{'), e = clean.lastIndexOf('}')
       setMakeResult(JSON.parse(clean.slice(s, e + 1)))
     } catch (err) {
-      console.error('Make drink error:', err)
-      setMakeResult({ error: 'Could not generate cocktails: ' + (err.message || 'Unknown error') })
+      setMakeResult({ error: 'Could not generate cocktails. Please try again.' })
     }
     setMakeLoading(false)
   }
@@ -590,11 +559,9 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
       })
       const clean = raw.replace(/```json|```/g, '').trim()
       const s = clean.indexOf('{'), e = clean.lastIndexOf('}')
-      if (s === -1) throw new Error('No JSON in response: ' + clean.slice(0, 100))
       setDiscoverResult(JSON.parse(clean.slice(s, e + 1)))
-    } catch (err) {
-      console.error('Discover cocktails error:', err)
-      setDiscoverResult({ error: 'Could not discover cocktails: ' + (err.message || 'Unknown error') })
+    } catch {
+      setDiscoverResult({ error: 'Could not discover cocktails. Please try again.' })
     }
     setDiscoverLoading(false)
   }
@@ -696,141 +663,58 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
   // ==========================================================================
   // RENDER
   // ==========================================================================
-  // Font scale: normal = 1.0, senior = 1.28 (~18px base from 14px)
-  const fontScale = seniorMode ? 1.28 : 1.0
-
   return (
-    <div style={{
-      minHeight: '100vh', background: C.bg, color: C.text, fontFamily: FB,
-      fontSize: seniorMode ? '22px' : '15px',
-    }}>
+    <div style={{ minHeight: '100vh', background: C.bg, color: C.text, fontFamily: FB }}>
 
       {/* ── HEADER ──────────────────────────────────────────────────────────── */}
       <header style={{
         position: 'sticky', top: 0, zIndex: 200,
         background: C.surface + 'ee', backdropFilter: 'blur(12px)',
         borderBottom: '1px solid ' + C.border,
+        padding: '0 20px', display: 'flex', alignItems: 'center',
+        height: 58, gap: 16,
       }}>
-
-        {/* ── Row 1: Logo · Sync · Unit · Sign In/Out ── */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '0 10px', height: 46, gap: 6,
-        }}>
-          {/* Logo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
-            <div style={{ fontSize: 20 }}>🍷</div>
-            <div style={{ lineHeight: 1.1 }}>
-              <span style={{ fontFamily: FD, fontSize: 16, color: C.burgundy, fontWeight: 700 }}>Smart </span>
-              <span style={{ fontFamily: FD, fontSize: 16, color: C.gold, fontWeight: 600 }}>Cellar</span>
+        {/* Logo wordmark */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ fontSize: 26 }}>🍷</div>
+          <div>
+            <div style={{ fontFamily: FD, fontSize: 20, color: C.burgundy, lineHeight: 1, fontWeight: 700 }}>
+              Smart
             </div>
-          </div>
-
-          {/* Right controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-
-            {/* Unit toggle */}
-            <button onClick={() => setUnitPref(u => u === 'oz' ? 'ml' : 'oz')}
-              style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-                padding: '3px 8px', borderRadius: 7, border: '1px solid ' + C.border,
-                background: 'transparent', color: C.muted, cursor: 'pointer' }}>
-              {unitPref}
-            </button>
-
-            {/* Sign In / Out */}
-            {onAuthAction && (
-              <button onClick={onAuthAction}
-                style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 10,
-                  padding: '4px 10px', borderRadius: 8, fontWeight: 700,
-                  border: user ? '1px solid ' + C.border : 'none',
-                  background: user ? 'transparent' : C.burgundy,
-                  color: user ? C.muted : '#fff', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                {user ? 'Sign Out' : 'Sign In'}
-              </button>
-            )}
+            <div style={{ fontFamily: FD, fontSize: 20, color: C.gold, lineHeight: 1, fontWeight: 600 }}>
+              Cellar
+            </div>
           </div>
         </div>
 
-        {/* ── Row 2: Nav tabs ── */}
-        <nav style={{
-          display: 'flex', gap: 4, overflowX: 'auto',
-          padding: '0 8px 7px', scrollbarWidth: 'none',
-          WebkitOverflowScrolling: 'touch',
-        }}>
+        {/* Nav */}
+        <nav style={{ display: 'flex', gap: 4, marginLeft: 8, flex: 1, overflowX: 'auto' }}>
           {[
-            { id: 'cellar',   label: '🍾 Cellar' },
-            { id: 'pour',     label: '⚖ Pour' },
-            { id: 'make',     label: '🍹 Make' },
-            { id: 'discover', label: '✨ Discover' },
-            { id: 'diy',      label: '🧪 DIY' },
-            { id: 'log',      label: '📋 Log' },
+            { id: 'cellar',   label: '🍾 My Cellar' },
+            { id: 'pour',     label: '⚖ Pour & Track' },
+            { id: 'make',     label: '🍹 Make a Drink' },
+            { id: 'discover', label: '✨ What Can I Make?' },
+            { id: 'diy',      label: '🧪 DIY Ingredients' },
+            { id: 'log',      label: '📋 Pour Log' },
           ].map(({ id, label }) => (
             <button key={id} onClick={() => setView(id)}
               style={{
-                flexShrink: 0, border: 'none', borderRadius: 20, cursor: 'pointer',
-                fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: 11,
-                padding: '5px 13px', whiteSpace: 'nowrap', transition: 'all 0.15s',
-                background: view === id ? C.burgundy : C.surface,
-                color: view === id ? '#fff' : C.muted,
-                outline: view === id ? 'none' : '1px solid ' + C.border,
+                ...bBtn(view === id ? 'primary' : 'ghost'),
+                fontSize: 12, padding: '6px 12px', whiteSpace: 'nowrap',
+                opacity: view === id ? 1 : 0.8,
+                background: view === id ? C.burgundy : 'transparent',
+                border: view === id ? 'none' : '1px solid ' + C.border,
               }}>
               {label}
             </button>
           ))}
-
-          {/* ── Accessibility toggles in nav row ── */}
-          <button onClick={toggleTheme}
-            title={isDark ? 'Light Mode' : 'Dark Mode'}
-            style={{
-              flexShrink: 0, borderRadius: 20, cursor: 'pointer',
-              fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: 13,
-              padding: '4px 10px', whiteSpace: 'nowrap', transition: 'all 0.15s',
-              border: '1px solid ' + C.border,
-              background: 'transparent', color: C.muted,
-              marginLeft: 4,
-            }}>
-            {isDark ? '☀️' : '🌙'}
-          </button>
-
-          <button onClick={toggleSenior}
-            title={seniorMode ? 'Normal Text' : 'Large Text'}
-            style={{
-              flexShrink: 0, borderRadius: 20, cursor: 'pointer',
-              fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: 12,
-              padding: '4px 10px', whiteSpace: 'nowrap', transition: 'all 0.15s',
-              border: '1px solid ' + (seniorMode ? C.gold : C.border),
-              background: seniorMode ? C.gold + '22' : 'transparent',
-              color: seniorMode ? C.gold : C.muted,
-            }}>
-            {seniorMode ? 'Aa✓' : 'Aa'}
-          </button>
-
-          {/* ☁ Sync with Smart Kitchen — lives in nav row with room to breathe */}
-          {user && (
-            <button onClick={syncWithSmartKitchen} disabled={syncStatus === 'syncing'}
-              title="Push your cellar inventory to Smart Kitchen for drink pairing"
-              style={{
-                flexShrink: 0, border: 'none', borderRadius: 20, cursor: 'pointer',
-                fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: 11,
-                padding: '5px 14px', whiteSpace: 'nowrap', transition: 'all 0.2s',
-                background: syncStatus === 'done'    ? C.teal
-                          : syncStatus === 'error'   ? C.red
-                          : syncStatus === 'syncing' ? C.border
-                          : '#f0a50030',
-                color: syncStatus === 'done'    ? '#0c0e14'
-                     : syncStatus === 'error'   ? '#fff'
-                     : syncStatus === 'syncing' ? C.muted
-                     : '#f0a500',
-                outline: syncStatus ? 'none' : '1px solid #f0a50055',
-                marginLeft: 4,
-              }}>
-              {syncStatus === 'syncing' ? '⟳ Syncing…'
-                : syncStatus === 'done'  ? '✓ Synced!'
-                : syncStatus === 'error' ? '✕ Error'
-                : '☁ Sync with Smart Kitchen'}
-            </button>
-          )}
         </nav>
+
+        {/* Unit toggle */}
+        <button onClick={() => setUnitPref(u => u === 'oz' ? 'ml' : 'oz')}
+          style={{ ...bBtn('ghost'), fontSize: 11, padding: '4px 10px' }}>
+          {unitPref === 'oz' ? 'ml' : 'oz'}
+        </button>
       </header>
 
       {/* ── SMART KITCHEN CROSS-PROMO BANNER ────────────────────────────────── */}
@@ -910,7 +794,6 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
                   onPour={() => openPour(bottle)}
                   onMake={() => makeDrink(bottle)}
                   unitPref={unitPref}
-                  seniorMode={seniorMode}
                 />
               ))}
             </div>
@@ -1010,35 +893,8 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
           {makeResult?.error && <ErrorMsg msg={makeResult.error} />}
           {makeResult?.cocktails && (
             <CocktailResults cocktails={makeResult.cocktails}
-              onSave={c => setCocktailFavs(f => [{ ...c, savedAt: new Date().toISOString() }, ...f])}
-              onMake={openGuidedMaker} />
+              onSave={c => setCocktailFavs(f => [{ ...c, savedAt: new Date().toISOString() }, ...f])} />
           )}
-        </Modal>
-      )}
-
-      {/* Guided Cocktail Maker */}
-      {showGuidedMaker && guidedCocktail && (
-        <Modal onClose={() => setShowGuidedMaker(false)}
-          title="⚖ Guided Cocktail Maker">
-          <GuidedCocktailMaker
-            cocktail={guidedCocktail}
-            cellar={cellar}
-            unitPref={unitPref}
-            onClose={() => setShowGuidedMaker(false)}
-            onLogPour={(cocktail, steps) => {
-              const entry = {
-                id: Date.now(),
-                bottle_name: cocktail.name,
-                bottle_id: null,
-                category: 'Cocktail',
-                poured_oz: steps.reduce((s, st) => s + (st.grams || 0) / 29.5735, 0),
-                poured_ml: steps.reduce((s, st) => s + (st.grams || 0), 0),
-                poured_g:  steps.reduce((s, st) => s + (st.grams || 0), 0),
-                poured_at: new Date().toISOString(),
-              }
-              setPourLog(l => [entry, ...l.slice(0, 499)])
-            }}
-          />
         </Modal>
       )}
 
@@ -1056,8 +912,7 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
                 </div>
               )}
               <CocktailResults cocktails={discoverResult.cocktails} showMissing
-                onSave={c => setCocktailFavs(f => [{ ...c, savedAt: new Date().toISOString() }, ...f])}
-                onMake={openGuidedMaker} />
+                onSave={c => setCocktailFavs(f => [{ ...c, savedAt: new Date().toISOString() }, ...f])} />
             </>
           )}
         </Modal>
@@ -1099,7 +954,7 @@ function Modal({ onClose, title, children }) {
 }
 
 // -- Bottle Card ---------------------------------------------------------------
-function BottleCard({ bottle, onEdit, onDelete, onPour, onMake, unitPref, seniorMode = false }) {
+function BottleCard({ bottle, onEdit, onDelete, onPour, onMake, unitPref }) {
   const pct = bottle.remaining_pct ?? 100
   const catColor = CAT_COLORS[bottle.category] || 'var(--sc-muted)'
   const isLow = pct < 20
@@ -1140,7 +995,7 @@ function BottleCard({ bottle, onEdit, onDelete, onPour, onMake, unitPref, senior
         {/* Top row: name + category badge (badge hidden when photo present) */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: seniorMode ? 30 : 18, fontWeight: 700,
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 18, fontWeight: 700,
               color: 'var(--sc-text)', lineHeight: 1.2, marginBottom: 2 }}>
               {bottle.name}
             </div>
@@ -1216,10 +1071,10 @@ function BottleCard({ bottle, onEdit, onDelete, onPour, onMake, unitPref, senior
 
         {/* Action buttons */}
         <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-          <button onClick={onPour} style={{ ...bBtn('primary', { flex: 1, fontSize: seniorMode ? 20 : 12, padding: seniorMode ? '16px 10px' : '7px 10px' }) }}>
+          <button onClick={onPour} style={{ ...bBtn('primary', { flex: 1, fontSize: 12, padding: '7px 10px' }) }}>
             ⚖ Pour
           </button>
-          <button onClick={onMake} style={{ ...bBtn('gold', { flex: 1, fontSize: seniorMode ? 20 : 12, padding: seniorMode ? '16px 10px' : '7px 10px' }) }}>
+          <button onClick={onMake} style={{ ...bBtn('gold', { flex: 1, fontSize: 12, padding: '7px 10px' }) }}>
             🍹 Make
           </button>
           <button onClick={onEdit} style={{ ...bBtn('ghost', { fontSize: 12, padding: '7px 10px' }) }}>✏</button>
@@ -1859,20 +1714,12 @@ function CocktailResults({ cocktails, showMissing = false, onSave }) {
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => { onSave(c); setSaved(s => new Set([...s, i])) }}
-                  disabled={saved.has(i)}
-                  style={{ ...bBtn(saved.has(i) ? 'ghost' : 'primary', { fontSize: 12, padding: '7px 16px' }),
-                    opacity: saved.has(i) ? 0.6 : 1 }}>
-                  {saved.has(i) ? '✓ Saved' : '♡ Save Recipe'}
-                </button>
-                {onMake && (
-                  <button onClick={() => onMake(c)}
-                    style={{ ...bBtn('teal', { fontSize: 12, padding: '7px 16px' }) }}>
-                    ⚖ Make This
-                  </button>
-                )}
-              </div>
+              <button onClick={() => { onSave(c); setSaved(s => new Set([...s, i])) }}
+                disabled={saved.has(i)}
+                style={{ ...bBtn(saved.has(i) ? 'ghost' : 'primary', { fontSize: 12, padding: '7px 16px' }),
+                  opacity: saved.has(i) ? 0.6 : 1 }}>
+                {saved.has(i) ? '✓ Saved' : '♡ Save Recipe'}
+              </button>
             </div>
           )}
         </div>
