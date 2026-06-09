@@ -7,6 +7,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { supabase, SC_KEYS, loadCloudData, saveCloudData } from './supabaseClient'
 import { useBLEScale, gramsToMl, mlToOz, ozToMl } from './hooks/useBLEScale'
 import './App.css'
+import GuidedCocktailMaker from './GuidedCocktailMaker'
 
 // -- File helpers (mirrors Smart Kitchen pattern) --------------------------------
 function fileToBase64(f) {
@@ -217,6 +218,8 @@ export default function App({ user, tier, can, onUpgrade, onAuthAction }) {
   const [cellar, setCellar] = useState(() => loadLS(SC_KEYS.cellar, []))
   const [pourLog, setPourLog] = useState(() => loadLS(SC_KEYS.pourLog, []))
   const [cocktailFavs, setCocktailFavs] = useState(() => loadLS(SC_KEYS.cocktailFavs, []))
+  const [showGuidedMaker, setShowGuidedMaker] = useState(false)
+  const [guidedCocktail, setGuidedCocktail]   = useState(null)
   const [bartesianPods, setBartesianPods] = useState(() => loadLS(SC_KEYS.bartesianPods, []))
   const [unitPref, setUnitPref] = useState(() => localStorage.getItem(SC_KEYS.unitPref) || 'oz')
   const [syncStatus, setSyncStatus] = useState(null)  // null | 'syncing' | 'done' | 'error'
@@ -265,6 +268,12 @@ export default function App({ user, tier, can, onUpgrade, onAuthAction }) {
     setSeniorMode(next)
     localStorage.setItem('sc_seniorMode', next ? '1' : '0')
     document.body.classList.toggle('sc-senior', next)
+  }
+
+  // Open guided cocktail maker
+  function openGuidedMaker(cocktail) {
+    setGuidedCocktail(cocktail)
+    setShowGuidedMaker(true)
   }
 
   // Manual sync with Smart Kitchen
@@ -998,8 +1007,35 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
           {makeResult?.error && <ErrorMsg msg={makeResult.error} />}
           {makeResult?.cocktails && (
             <CocktailResults cocktails={makeResult.cocktails}
-              onSave={c => setCocktailFavs(f => [{ ...c, savedAt: new Date().toISOString() }, ...f])} />
+              onSave={c => setCocktailFavs(f => [{ ...c, savedAt: new Date().toISOString() }, ...f])}
+              onMake={openGuidedMaker} />
           )}
+        </Modal>
+      )}
+
+      {/* Guided Cocktail Maker */}
+      {showGuidedMaker && guidedCocktail && (
+        <Modal onClose={() => setShowGuidedMaker(false)}
+          title="⚖ Guided Cocktail Maker">
+          <GuidedCocktailMaker
+            cocktail={guidedCocktail}
+            cellar={cellar}
+            unitPref={unitPref}
+            onClose={() => setShowGuidedMaker(false)}
+            onLogPour={(cocktail, steps) => {
+              const entry = {
+                id: Date.now(),
+                bottle_name: cocktail.name,
+                bottle_id: null,
+                category: 'Cocktail',
+                poured_oz: steps.reduce((s, st) => s + (st.grams || 0) / 29.5735, 0),
+                poured_ml: steps.reduce((s, st) => s + (st.grams || 0), 0),
+                poured_g:  steps.reduce((s, st) => s + (st.grams || 0), 0),
+                poured_at: new Date().toISOString(),
+              }
+              setPourLog(l => [entry, ...l.slice(0, 499)])
+            }}
+          />
         </Modal>
       )}
 
@@ -1017,7 +1053,8 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
                 </div>
               )}
               <CocktailResults cocktails={discoverResult.cocktails} showMissing
-                onSave={c => setCocktailFavs(f => [{ ...c, savedAt: new Date().toISOString() }, ...f])} />
+                onSave={c => setCocktailFavs(f => [{ ...c, savedAt: new Date().toISOString() }, ...f])}
+                onMake={openGuidedMaker} />
             </>
           )}
         </Modal>
@@ -1819,12 +1856,20 @@ function CocktailResults({ cocktails, showMissing = false, onSave }) {
                 </div>
               )}
 
-              <button onClick={() => { onSave(c); setSaved(s => new Set([...s, i])) }}
-                disabled={saved.has(i)}
-                style={{ ...bBtn(saved.has(i) ? 'ghost' : 'primary', { fontSize: 12, padding: '7px 16px' }),
-                  opacity: saved.has(i) ? 0.6 : 1 }}>
-                {saved.has(i) ? '✓ Saved' : '♡ Save Recipe'}
-              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => { onSave(c); setSaved(s => new Set([...s, i])) }}
+                  disabled={saved.has(i)}
+                  style={{ ...bBtn(saved.has(i) ? 'ghost' : 'primary', { fontSize: 12, padding: '7px 16px' }),
+                    opacity: saved.has(i) ? 0.6 : 1 }}>
+                  {saved.has(i) ? '✓ Saved' : '♡ Save Recipe'}
+                </button>
+                {onMake && (
+                  <button onClick={() => onMake(c)}
+                    style={{ ...bBtn('teal', { fontSize: 12, padding: '7px 16px' }) }}>
+                    ⚖ Make This
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
