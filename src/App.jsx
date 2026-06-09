@@ -682,9 +682,10 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
             {/* ☁ Sync with Smart Kitchen */}
             {user && (
               <button onClick={syncWithSmartKitchen} disabled={syncStatus === 'syncing'}
+                title="Sync cellar inventory with Smart Kitchen"
                 style={{
                   fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700,
-                  padding: '4px 8px', borderRadius: 7, cursor: 'pointer',
+                  padding: '4px 9px', borderRadius: 7, cursor: 'pointer',
                   whiteSpace: 'nowrap', border: 'none', transition: 'all 0.25s',
                   background: syncStatus === 'done'    ? C.teal + 'dd'
                             : syncStatus === 'error'   ? C.red
@@ -696,9 +697,9 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
                        : '#f0a500',
                 }}>
                 {syncStatus === 'syncing' ? '⟳ Syncing…'
-                  : syncStatus === 'done'  ? '✓ Synced!'
+                  : syncStatus === 'done'  ? '✓ Synced'
                   : syncStatus === 'error' ? '✕ Error'
-                  : '☁ Sync with Smart Kitchen'}
+                  : '☁ SK Sync'}
               </button>
             )}
 
