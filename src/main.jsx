@@ -307,7 +307,46 @@ function Root() {
 
   return (
     <>
-      {/* Main App — auth controls passed as prop, rendered inside header */}
+      {/* Top-right auth bar */}
+      <div style={{
+        position: 'fixed', top: 0, right: 'max(12px, calc((100vw - 1140px) / 2))',
+        zIndex: 999, display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px',
+      }}>
+        {/* Smart Kitchen cross-link */}
+        <a href="https://smart-kitchen-opal.vercel.app" target="_blank" rel="noopener noreferrer"
+          style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+            color: '#f0a500', textDecoration: 'none', border: '1px solid #f0a50044',
+            borderRadius: 8, padding: '3px 8px', background: '#f0a50010' }}>
+          🍳 Smart Kitchen
+        </a>
+
+        {user ? (
+          <>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+              color: 'var(--sc-muted)', background: 'var(--sc-surface)', padding: '3px 8px',
+              borderRadius: 8, border: '1px solid var(--sc-border)' }}>
+              {tierLabel}
+            </span>
+            {!isActive && !isAdmin && (
+              <button onClick={() => setShowSub(true)}
+                style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, padding: '4px 10px',
+                  borderRadius: 10, border: 'none', background: 'var(--sc-burgundy)',
+                  color: '#fff', cursor: 'pointer', fontWeight: 700 }}>Upgrade</button>
+            )}
+            <button onClick={handleSignOut}
+              style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, padding: '4px 8px',
+                borderRadius: 8, border: '1px solid var(--sc-border)', background: 'transparent',
+                color: 'var(--sc-muted)', cursor: 'pointer' }}>Sign Out</button>
+          </>
+        ) : (
+          <button onClick={() => { setAuthMode('signin'); setShowAuth(true) }}
+            style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, padding: '5px 14px',
+              borderRadius: 10, border: 'none', background: 'var(--sc-burgundy)',
+              color: '#fff', cursor: 'pointer', fontWeight: 700 }}>Sign In</button>
+        )}
+      </div>
+
+      {/* Main App */}
       <App
         user={user}
         tier={effectiveTier}
