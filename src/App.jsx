@@ -690,7 +690,7 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
   return (
     <div style={{
       minHeight: '100vh', background: C.bg, color: C.text, fontFamily: FB,
-      fontSize: seniorMode ? '18px' : '14px',
+      fontSize: seniorMode ? '22px' : '15px',
     }}>
 
       {/* ── HEADER ──────────────────────────────────────────────────────────── */}
@@ -1100,7 +1100,7 @@ function BottleCard({ bottle, onEdit, onDelete, onPour, onMake, unitPref, senior
         {/* Top row: name + category badge (badge hidden when photo present) */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: seniorMode ? 24 : 18, fontWeight: 700,
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: seniorMode ? 30 : 18, fontWeight: 700,
               color: 'var(--sc-text)', lineHeight: 1.2, marginBottom: 2 }}>
               {bottle.name}
             </div>
@@ -1176,10 +1176,10 @@ function BottleCard({ bottle, onEdit, onDelete, onPour, onMake, unitPref, senior
 
         {/* Action buttons */}
         <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-          <button onClick={onPour} style={{ ...bBtn('primary', { flex: 1, fontSize: seniorMode ? 16 : 12, padding: seniorMode ? '12px 10px' : '7px 10px' }) }}>
+          <button onClick={onPour} style={{ ...bBtn('primary', { flex: 1, fontSize: seniorMode ? 20 : 12, padding: seniorMode ? '16px 10px' : '7px 10px' }) }}>
             ⚖ Pour
           </button>
-          <button onClick={onMake} style={{ ...bBtn('gold', { flex: 1, fontSize: seniorMode ? 16 : 12, padding: seniorMode ? '12px 10px' : '7px 10px' }) }}>
+          <button onClick={onMake} style={{ ...bBtn('gold', { flex: 1, fontSize: seniorMode ? 20 : 12, padding: seniorMode ? '16px 10px' : '7px 10px' }) }}>
             🍹 Make
           </button>
           <button onClick={onEdit} style={{ ...bBtn('ghost', { fontSize: 12, padding: '7px 10px' }) }}>✏</button>
