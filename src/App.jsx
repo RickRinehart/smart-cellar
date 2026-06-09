@@ -599,9 +599,20 @@ Full cellar inventory: ${inventory}.
 Suggest 3 cocktails ranging from classic to creative. Prefer recipes using ingredients already in the cellar. Include at least one simple 2-3 ingredient recipe.`,
         maxTokens: 1200,
       })
-      const clean = raw.replace(/```json|```/g, '').trim()
+      const clean = raw.replace(/```json|```/g, '').replace(/[ -]/g, ' ').trim()
       const s = clean.indexOf('{'), e = clean.lastIndexOf('}')
-      setMakeResult(JSON.parse(clean.slice(s, e + 1)))
+      let parsed
+      try {
+        parsed = JSON.parse(clean.slice(s, e + 1))
+      } catch {
+        const partial = clean.slice(s)
+        const lastGood = partial.lastIndexOf('},
+')
+        if (lastGood > 100) {
+          parsed = JSON.parse(partial.slice(0, lastGood + 1) + ']}')
+        } else throw new Error('Could not parse AI response')
+      }
+      setMakeResult(parsed)
     } catch (err) {
       setMakeResult({ error: 'Could not generate cocktails. Please try again.' })
     }
@@ -625,11 +636,24 @@ Return ONLY valid JSON — no markdown — in this exact shape:
         prompt: `User's cellar inventory: ${inventory}.
 ${query ? 'User request: ' + query + '.' : 'Surprise them with a creative selection.'}
 Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requiring the fewest missing ingredients. Mark each ingredient in_cellar true/false. Include a friendly tip.`,
-        maxTokens: 1400,
+        maxTokens: 2000,
       })
-      const clean = raw.replace(/```json|```/g, '').trim()
+      const clean = raw.replace(/```json|```/g, '').replace(/[\u0000-\u001F\u007F]/g, ' ').trim()
       const s = clean.indexOf('{'), e = clean.lastIndexOf('}')
-      setDiscoverResult(JSON.parse(clean.slice(s, e + 1)))
+      if (s === -1) throw new Error('No JSON in response')
+      let parsed
+      try {
+        parsed = JSON.parse(clean.slice(s, e + 1))
+      } catch {
+        // Salvage partial — find last complete cocktail entry
+        const partial = clean.slice(s)
+        const lastComma = partial.lastIndexOf('},{')
+        if (lastComma > 200) {
+          try { parsed = JSON.parse(partial.slice(0, lastComma) + '}],"tip":"See above for suggestions."}') }
+          catch { parsed = JSON.parse(partial.slice(0, lastComma) + '}]}') }
+        } else throw new Error('JSON parse failed: ' + clean.slice(0, 80))
+      }
+      setDiscoverResult(parsed)
     } catch (err) {
       console.error('Discover error:', err)
       setDiscoverResult({ error: 'Error: ' + (err?.message || String(err)) })
