@@ -606,8 +606,7 @@ Suggest 3 cocktails ranging from classic to creative. Prefer recipes using ingre
         parsed = JSON.parse(clean.slice(s, e + 1))
       } catch {
         const partial = clean.slice(s)
-        const lastGood = partial.lastIndexOf('},
-')
+        const lastGood = partial.lastIndexOf('},')
         if (lastGood > 100) {
           parsed = JSON.parse(partial.slice(0, lastGood + 1) + ']}')
         } else throw new Error('Could not parse AI response')
