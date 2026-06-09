@@ -253,7 +253,7 @@ export default function App({ user, tier, can, onUpgrade }) {
   const [showAddBottle, setShowAddBottle]     = useState(false)
   const [editingBottle, setEditingBottle]     = useState(null)
   const [bottleForm, setBottleForm]           = useState({
-    name: '', category: 'Whiskey / Bourbon', brand: '',
+    name: '', category: 'Whiskey / Bourbon', brand: '', producer: '',
     size_ml: 750, remaining_pct: 100, proof: '', vintage: '',
     location: 'Bar Cart', notes: '', sweetness: '', winery_url: '', photo_b64: null,
   })
@@ -294,7 +294,7 @@ export default function App({ user, tier, can, onUpgrade }) {
   function openAddBottle(preset = null) {
     setEditingBottle(null)
     setBottleForm(preset ?? {
-      name: '', category: 'Whiskey / Bourbon', brand: '',
+      name: '', category: 'Whiskey / Bourbon', brand: '', producer: '',
       size_ml: 750, remaining_pct: 100, proof: '', vintage: '',
       location: 'Bar Cart', notes: '', sweetness: '', winery_url: '',
     })
@@ -360,7 +360,7 @@ export default function App({ user, tier, can, onUpgrade }) {
       const raw = await callClaude({
         system: `You are an expert spirits and wine identifier. Analyze this bottle photo and extract all visible bottle information.
 Return ONLY valid JSON — no markdown, no preamble — as an array of bottle objects (usually 1, but could be multiple if several bottles are visible):
-[{"name":"string (brand + expression, e.g. Maker's Mark Bourbon)","brand":"string","category":"string (must be one of: Whiskey / Bourbon|Scotch|Rye|Irish Whiskey|Vodka|Gin|Rum|Tequila / Mezcal|Brandy / Cognac|Liqueur / Cordial|Amaro / Bitters|Wine — Red|Wine — White|Wine — Rosé|Wine — Sparkling|Beer / Hard Cider|Non-Alcoholic|Other)","proof":"string or null (e.g. '90' or '45% ABV')","vintage":"string or null (year if visible)","sweetness":"string or null — for wines only: Bone Dry|Dry|Off-Dry|Semi-Sweet|Sweet|Very Sweet based on wine type","winery_url":null,"size_ml":750,"remaining_pct":100,"location":"Bar Cart","notes":"string or null","confidence":"high|medium|low"}]
+[{"name":"string (brand + expression, e.g. Maker's Mark Bourbon)","brand":"string","producer":"string or null (winery, distillery, or brewery name — e.g. St. Julian Winery, Buffalo Trace Distillery. Often different from the brand/label name)","category":"string (must be one of: Whiskey / Bourbon|Scotch|Rye|Irish Whiskey|Vodka|Gin|Rum|Tequila / Mezcal|Brandy / Cognac|Liqueur / Cordial|Amaro / Bitters|Wine — Red|Wine — White|Wine — Rosé|Wine — Sparkling|Beer / Hard Cider|Non-Alcoholic|Other)","proof":"string or null (e.g. '90' or '45% ABV')","vintage":"string or null (year if visible)","sweetness":"string or null — for wines only: Bone Dry|Dry|Off-Dry|Semi-Sweet|Sweet|Very Sweet based on wine type","winery_url":null,"size_ml":750,"remaining_pct":100,"location":"Bar Cart","notes":"string or null","confidence":"high|medium|low"}]
 If the label is unreadable, return a best guess with confidence=low. Never return an empty array — always return at least one object.`,
         prompt: 'Identify all bottles visible in this photo. Extract brand, spirit type, proof/ABV, and any vintage year visible on the label.',
         imageBase64: scanB64,
@@ -385,7 +385,7 @@ If the label is unreadable, return a best guess with confidence=low. Never retur
       const raw = await callClaude({
         system: `You are a liquor store receipt parser. Analyze this receipt and extract all alcohol/beverage purchases.
 Return ONLY valid JSON array — no markdown:
-[{"name":"string (brand + expression)","brand":"string or null","category":"string (Whiskey / Bourbon|Scotch|Rye|Irish Whiskey|Vodka|Gin|Rum|Tequila / Mezcal|Brandy / Cognac|Liqueur / Cordial|Wine — Red|Wine — White|Wine — Rosé|Wine — Sparkling|Beer / Hard Cider|Mixers|Other)","size_ml":750,"proof":null,"vintage":null,"sweetness":null,"winery_url":null,"remaining_pct":100,"location":"Bar Cart","price":"string or null","qty":1,"confidence":"high|medium|low"}]
+[{"name":"string (brand + expression)","brand":"string or null","producer":"string or null (winery or distillery name)","category":"string (Whiskey / Bourbon|Scotch|Rye|Irish Whiskey|Vodka|Gin|Rum|Tequila / Mezcal|Brandy / Cognac|Liqueur / Cordial|Wine — Red|Wine — White|Wine — Rosé|Wine — Sparkling|Beer / Hard Cider|Mixers|Other)","size_ml":750,"proof":null,"vintage":null,"sweetness":null,"winery_url":null,"remaining_pct":100,"location":"Bar Cart","price":"string or null","qty":1,"confidence":"high|medium|low"}]
 If an item is clearly non-alcoholic, still include it. Skip food items.`,
         prompt: 'Parse this receipt. Extract every bottle/beverage purchased.',
         imageBase64: scanB64,
@@ -973,9 +973,9 @@ function BottleCard({ bottle, onEdit, onDelete, onPour, onMake, unitPref }) {
               color: 'var(--sc-text)', lineHeight: 1.2, marginBottom: 2 }}>
               {bottle.name}
             </div>
-            {bottle.brand && (
+            {(bottle.producer || bottle.brand) && (
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--sc-muted)' }}>
-                {bottle.brand}
+                {bottle.producer || bottle.brand}
               </div>
             )}
           </div>
@@ -1055,9 +1055,10 @@ function BottleCard({ bottle, onEdit, onDelete, onPour, onMake, unitPref }) {
           <button onClick={onDelete} style={{ ...bBtn('danger', { fontSize: 12, padding: '7px 10px' }) }}>🗑</button>
         </div>
 
-        {/* Winery / producer search link — opens Google search for brand + name */}
-        {(bottle.brand || bottle.name) && (() => {
-          const searchTerm = encodeURIComponent((bottle.brand || bottle.name) + ' winery')
+        {/* Producer search link — uses producer field, falls back to brand, then name */}
+        {(bottle.producer || bottle.brand || bottle.name) && (() => {
+          const producer = bottle.producer || bottle.brand || bottle.name
+          const searchTerm = encodeURIComponent(producer)
           const searchUrl = `https://www.google.com/search?q=${searchTerm}`
           return (
             <a href={searchUrl} target="_blank" rel="noopener noreferrer"
@@ -1069,7 +1070,7 @@ function BottleCard({ bottle, onEdit, onDelete, onPour, onMake, unitPref }) {
                 borderRadius: 8, padding: '6px 10px',
               }}>
               🔍 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                Search {bottle.brand || bottle.name}
+                Search {producer}
               </span>
               <span style={{ flexShrink: 0, fontSize: 10, opacity: 0.7 }}>↗</span>
             </a>
@@ -1109,8 +1110,12 @@ function BottleForm({ form, onChange }) {
       </select>
 
       {label('Brand')}
-      <input style={fi()} placeholder="e.g. Maker's Mark Distillery" value={form.brand || ''}
+      <input style={fi()} placeholder="e.g. Catherman's Port" value={form.brand || ''}
         onChange={e => onChange({ brand: e.target.value })} />
+
+      {label('Vineyard / Winery / Distillery')}
+      <input style={fi()} placeholder="e.g. St. Julian Winery" value={form.producer || ''}
+        onChange={e => onChange({ producer: e.target.value })} />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div>
@@ -2037,19 +2042,27 @@ function ScannerModal({
                     </select>
                   </div>
 
-                  {/* Search link preview — shows what will appear on the card */}
+                  {/* Editable producer field — drives the search link on the card */}
                   <div style={{ gridColumn: '1 / -1' }}>
                     <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
-                      color: 'var(--sc-muted)', marginBottom: 4 }}>PRODUCER SEARCH</div>
-                    <div style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      background: 'var(--sc-teal)10', border: '1px solid var(--sc-teal)33',
-                      borderRadius: 6, padding: '5px 8px',
-                      fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--sc-teal)',
-                    }}>
-                      🔍 <span>Search {bottle.brand || bottle.name}</span>
-                      <span style={{ marginLeft: 'auto', opacity: 0.6, fontSize: 9 }}>↗ on card</span>
+                      color: 'var(--sc-muted)', marginBottom: 3 }}>
+                      VINEYARD / WINERY / DISTILLERY
+                      {(bottle.producer || bottle.brand) && (
+                        <span style={{ marginLeft: 6, color: 'var(--sc-teal)', fontSize: 9 }}>
+                          🔍 search will use this name
+                        </span>
+                      )}
                     </div>
+                    <input
+                      value={bottle.producer || ''}
+                      onChange={e => setScanResults(r => r.map((b, bi) => bi === i ? { ...b, producer: e.target.value } : b))}
+                      placeholder="e.g. St. Julian Winery"
+                      style={{
+                        width: '100%', background: 'var(--sc-card)', border: '1px solid var(--sc-border)',
+                        borderRadius: 6, color: 'var(--sc-text)',
+                        fontFamily: "'DM Sans', sans-serif",
+                        fontSize: 12, padding: '6px 8px', outline: 'none', boxSizing: 'border-box',
+                      }} />
                   </div>
                 </div>
               )}
