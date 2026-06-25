@@ -374,6 +374,11 @@ export default function App({ user, tier, can, onUpgrade, onAuthAction }) {
   const [discoverLoading, setDiscoverLoading]     = useState(false)
   const [discoverQuery, setDiscoverQuery]         = useState('')
 
+  // -- Cellar Advisor (Stock Up) state ------------------------------------
+  const [showAdvisorModal, setShowAdvisorModal]   = useState(false)
+  const [advisorResult, setAdvisorResult]         = useState(null)
+  const [advisorLoading, setAdvisorLoading]       = useState(false)
+
   // -- Smart Kitchen cross-promo (detected from SK_crossPromo flag) -------------
   const [skTrialSource, setSkTrialSource] = useState(false)
   useEffect(() => {
@@ -661,6 +666,33 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
   }
 
   // ==========================================================================
+  // CELLAR ADVISOR — What Should I Add?
+  // ==========================================================================
+  async function getCellarAdvice() {
+    setAdvisorResult(null)
+    setAdvisorLoading(true)
+    setShowAdvisorModal(true)
+    const inventory = cellar.map(b => `${b.name} (${b.category})`).join(', ') || 'Empty cellar'
+    const categories = [...new Set(cellar.map(b => b.category))].join(', ') || 'none'
+    try {
+      const raw = await callClaude({
+        system: `You are an expert sommelier and master bartender advising a home bar owner on expanding their cellar. Analyze their current inventory and recommend the most impactful additions.\nReturn ONLY valid JSON — no markdown, no preamble — in this exact shape:\n{\"recommendations\":[{\"name\":\"string (specific bottle name or category e.g. Noilly Prat Dry Vermouth)\",\"category\":\"string (use Smart Cellar category exactly)\",\"priority\":\"Essential|High|Nice to Have\",\"reason\":\"string (why this specifically, what it unlocks)\",\"unlocks\":[\"cocktail name\"],\"estimated_price\":\"string e.g. $15–$25\",\"beginner_friendly\":true}],\"summary\":\"string (2-3 sentence overview of the cellar gaps and recommended focus)\",\"quick_win\":\"string (the single most impactful bottle to buy first and why)\"}\nReturn 6-8 recommendations sorted by priority. Be specific — name actual bottles, not just categories.`,
+        prompt: `My current cellar: ${inventory}.\nCategories present: ${categories}.\nTotal bottles: ${cellar.length}.\nWhat should I add to most expand my cocktail-making ability and round out my collection? Focus on versatile bottles that unlock many drinks.`,
+        maxTokens: 1800,
+      })
+      const clean = raw.replace(/```json|```/g, '').replace(/[\u0000-\u001F\u007F]/g, ' ').trim()
+      const s = clean.indexOf('{'), e = clean.lastIndexOf('}')
+      if (s === -1) throw new Error('No JSON in response')
+      const parsed = JSON.parse(clean.slice(s, e + 1))
+      setAdvisorResult(parsed)
+    } catch (err) {
+      console.error('Advisor error:', err)
+      setAdvisorResult({ error: 'Could not generate recommendations: ' + (err?.message || String(err)) })
+    }
+    setAdvisorLoading(false)
+  }
+
+  // ==========================================================================
   // POUR FILL GRAPHIC — visual wine/glass fill indicator
   // ==========================================================================
   function PourFillGraphic({ poured_oz, target_oz, category }) {
@@ -813,6 +845,7 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
             { id: 'discover', label: '✨ Discover' },
             { id: 'diy',      label: '🧪 DIY' },
             { id: 'log',      label: '📋 Log' },
+            { id: 'stockup',  label: '🛒 Stock Up' },
           ].map(({ id, label }) => (
             <button key={id} onClick={() => setView(id)}
               style={{
@@ -980,6 +1013,11 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
         {/* ━━━━━ DIY INGREDIENTS VIEW ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         {view === 'diy' && <DIYView />}
 
+        {/* ━━━━━ STOCK UP VIEW ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {view === 'stockup' && (
+          <StockUpView cellar={cellar} onGetAdvice={getCellarAdvice} />
+        )}
+
         {/* ━━━━━ POUR LOG VIEW ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         {view === 'log' && (
           <PourLogView pourLog={pourLog} unitPref={unitPref} onClear={() => setPourLog([])} />
@@ -1056,6 +1094,17 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
         </Modal>
       )}
 
+      {/* Cellar Advisor / Stock Up */}
+      {showAdvisorModal && (
+        <Modal onClose={() => setShowAdvisorModal(false)} title="🛒 What Should I Add?">
+          {advisorLoading && <LoadingSpinner text="Your AI sommelier is analyzing your cellar…" />}
+          {advisorResult?.error && <ErrorMsg msg={advisorResult.error} />}
+          {advisorResult && !advisorResult.error && (
+            <CellarAdvisorResults result={advisorResult} />
+          )}
+        </Modal>
+      )}
+
       {/* What Can I Make? */}
       {showDiscoverModal && (
         <Modal onClose={() => setShowDiscoverModal(false)} title="✨ What Can I Make?">
@@ -1071,6 +1120,18 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
               )}
               <CocktailResults cocktails={discoverResult.cocktails} showMissing
                 onSave={c => setCocktailFavs(f => [{ ...c, savedAt: new Date().toISOString() }, ...f])} />
+              <div style={{ marginTop: 20, padding: '14px 16px', background: C.surface,
+                border: '1px solid ' + C.border, borderRadius: 12,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <div style={{ fontFamily: FD, fontSize: 15, color: C.text, fontWeight: 700 }}>Want more options?</div>
+                  <div style={{ fontFamily: FM, fontSize: 11, color: C.muted, marginTop: 2 }}>Get AI recommendations on what to add to your cellar.</div>
+                </div>
+                <button onClick={() => { setShowDiscoverModal(false); getCellarAdvice() }}
+                  style={{ ...bBtn('gold', { fontSize: 12, padding: '9px 16px', whiteSpace: 'nowrap', flexShrink: 0 }) }}>
+                  🛒 What Should I Add?
+                </button>
+              </div>
             </>
           )}
         </Modal>
@@ -1905,6 +1966,166 @@ function ErrorMsg({ msg }) {
     <div style={{ background: '#dc262612', border: '1px solid #dc262644', borderRadius: 10,
       padding: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#dc2626' }}>
       {msg}
+    </div>
+  )
+}
+
+// -- Stock Up View -----------------------------------------------------------
+function StockUpView({ cellar, onGetAdvice }) {
+  return (
+    <div>
+      <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, color: 'var(--sc-text)', marginBottom: 8 }}>What Should I Add?</div>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--sc-muted)', marginBottom: 24, lineHeight: 1.6 }}>
+        Your AI sommelier analyzes your cellar and recommends the bottles that will most expand your cocktail repertoire.
+      </div>
+      <div style={{ background: 'var(--sc-card)', border: '1px solid var(--sc-border)', borderRadius: 16, padding: 28, textAlign: 'center', marginBottom: 24 }}>
+        <div style={{ fontSize: 52, marginBottom: 12 }}>🍾</div>
+        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, color: 'var(--sc-text)', marginBottom: 8 }}>
+          {cellar.length === 0 ? 'Start with a few bottles' : `${cellar.length} bottle${cellar.length !== 1 ? 's' : ''} in your cellar`}
+        </div>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--sc-muted)', marginBottom: 24, lineHeight: 1.6 }}>
+          {cellar.length === 0
+            ? 'Add a few bottles to your cellar first, then get personalized recommendations for filling the gaps.'
+            : 'Get AI-powered recommendations for bottles that will unlock the most new cocktails and round out your collection.'}
+        </div>
+        <button onClick={onGetAdvice} style={{
+          background: 'var(--sc-gold)', color: '#0c0e14', border: 'none', borderRadius: 12,
+          fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: 15,
+          padding: '14px 32px', cursor: 'pointer',
+        }}>
+          🛒 Analyze My Cellar
+        </button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
+        {[
+          { icon: '🍸', title: 'Cocktail Unlocks', desc: 'Bottles that open up the most classic recipes' },
+          { icon: '🗂', title: 'Collection Gaps', desc: 'Missing categories and logical next purchases' },
+          { icon: '💰', title: 'Best Value', desc: 'Most versatile bottles for the price' },
+        ].map(({ icon, title, desc }) => (
+          <div key={title} style={{ background: 'var(--sc-card)', border: '1px solid var(--sc-border)', borderRadius: 12, padding: 16 }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>{icon}</div>
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 16, fontWeight: 700, color: 'var(--sc-text)', marginBottom: 4 }}>{title}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--sc-muted)', lineHeight: 1.5 }}>{desc}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// -- Cellar Advisor Results ---------------------------------------------------
+function CellarAdvisorResults({ result }) {
+  const [expanded, setExpanded] = useState(null)
+  const PRIORITY_COLOR = { 'Essential': 'var(--sc-burgundy)', 'High': 'var(--sc-gold)', 'Nice to Have': 'var(--sc-teal)' }
+  const PRIORITY_BG    = { 'Essential': 'var(--sc-burgundy)20', 'High': 'var(--sc-gold)20', 'Nice to Have': 'var(--sc-teal)20' }
+
+  return (
+    <div>
+      {/* Summary card */}
+      {result.summary && (
+        <div style={{ background: 'var(--sc-surface)', border: '1px solid var(--sc-border)', borderRadius: 12,
+          padding: '14px 16px', marginBottom: 16 }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700,
+            color: 'var(--sc-muted)', marginBottom: 6 }}>CELLAR ANALYSIS</div>
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--sc-text)', lineHeight: 1.6 }}>
+            {result.summary}
+          </div>
+        </div>
+      )}
+
+      {/* Quick win highlight */}
+      {result.quick_win && (
+        <div style={{ background: 'var(--sc-gold)15', border: '1px solid var(--sc-gold)44',
+          borderRadius: 12, padding: '12px 16px', marginBottom: 16,
+          display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+          <span style={{ fontSize: 20, flexShrink: 0 }}>⚡</span>
+          <div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700,
+              color: 'var(--sc-gold)', marginBottom: 4 }}>BUY THIS FIRST</div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--sc-text)', lineHeight: 1.5 }}>
+              {result.quick_win}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Recommendation list */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {(result.recommendations || []).map((rec, i) => (
+          <div key={i} style={{ background: 'var(--sc-surface)', border: '1px solid var(--sc-border)',
+            borderRadius: 12, overflow: 'hidden' }}>
+            <button onClick={() => setExpanded(expanded === i ? null : i)}
+              style={{ width: '100%', background: 'none', border: 'none', padding: '13px 16px',
+                cursor: 'pointer', textAlign: 'left', display: 'flex',
+                alignItems: 'center', gap: 12 }}>
+              {/* Priority badge */}
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700,
+                padding: '3px 8px', borderRadius: 6, flexShrink: 0,
+                background: PRIORITY_BG[rec.priority] || 'var(--sc-border)',
+                color: PRIORITY_COLOR[rec.priority] || 'var(--sc-muted)' }}>
+                {rec.priority?.toUpperCase()}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 17,
+                  fontWeight: 700, color: 'var(--sc-text)' }}>{rec.name}</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+                  color: 'var(--sc-muted)', marginTop: 1 }}>{rec.category}</div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+                {rec.estimated_price && (
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+                    color: 'var(--sc-teal)', fontWeight: 700 }}>{rec.estimated_price}</div>
+                )}
+                <span style={{ color: 'var(--sc-muted)', fontSize: 14 }}>
+                  {expanded === i ? '▲' : '▼'}
+                </span>
+              </div>
+            </button>
+
+            {expanded === i && (
+              <div style={{ padding: '0 16px 16px' }}>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13,
+                  color: 'var(--sc-text)', lineHeight: 1.6, marginBottom: 12 }}>
+                  {rec.reason}
+                </div>
+                {rec.unlocks?.length > 0 && (
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+                      fontWeight: 700, color: 'var(--sc-gold)', marginBottom: 6 }}>COCKTAILS THIS UNLOCKS</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {rec.unlocks.map((cocktail, j) => (
+                        <span key={j} style={{ fontFamily: "'JetBrains Mono', monospace",
+                          fontSize: 10, padding: '3px 9px', borderRadius: 6,
+                          background: 'var(--sc-gold)15', color: 'var(--sc-gold)',
+                          border: '1px solid var(--sc-gold)33' }}>
+                          🍹 {cocktail}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {rec.beginner_friendly && (
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+                      color: 'var(--sc-teal)', background: 'var(--sc-teal)18',
+                      borderRadius: 6, padding: '3px 9px', border: '1px solid var(--sc-teal)33' }}>
+                      ✓ Beginner Friendly
+                    </span>
+                  )}
+                  <a href={`https://www.google.com/search?q=${encodeURIComponent(rec.name + ' buy')}`}
+                    target="_blank" rel="noopener noreferrer"
+                    style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+                      color: 'var(--sc-teal)', textDecoration: 'none',
+                      background: 'var(--sc-teal)10', border: '1px solid var(--sc-teal)33',
+                      borderRadius: 8, padding: '5px 12px', display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                    🔍 Find this bottle ↗
+                  </a>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
