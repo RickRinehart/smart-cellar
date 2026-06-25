@@ -254,12 +254,20 @@ export default function App({ user, tier, can, onUpgrade, onAuthAction }) {
   useEffect(() => { saveLS(SC_KEYS.bartesianPods, bartesianPods) }, [bartesianPods])
   useEffect(() => { localStorage.setItem(SC_KEYS.unitPref, unitPref) }, [unitPref])
 
-  // Hide nav scrollbar on webkit browsers (Android Chrome)
+  // Styled nav scrollbar — thin burgundy track so users know it scrolls
   useEffect(() => {
     const style = document.createElement('style')
-    style.id = 'sc-nav-scrollbar-hide'
-    style.textContent = 'nav::-webkit-scrollbar { display: none; }'
-    if (!document.getElementById('sc-nav-scrollbar-hide')) document.head.appendChild(style)
+    style.id = 'sc-nav-scrollbar-style'
+    style.textContent = [
+      'nav.sc-nav::-webkit-scrollbar { height: 3px; }',
+      'nav.sc-nav::-webkit-scrollbar-track { background: transparent; }',
+      'nav.sc-nav::-webkit-scrollbar-thumb { background: var(--sc-burgundy); border-radius: 2px; opacity: 0.6; }',
+      'nav.sc-nav { scrollbar-width: thin; scrollbar-color: var(--sc-burgundy) transparent; }',
+    ].join(' ')
+    if (!document.getElementById('sc-nav-scrollbar-style')) {
+      style.id = 'sc-nav-scrollbar-style'
+      document.head.appendChild(style)
+    }
     return () => {}
   }, [])
 
@@ -842,10 +850,16 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
         </div>
 
         {/* ── Row 2: Nav tabs + Aa + theme + Sync (horizontally scrollable) ── */}
-        <nav style={{
+        {/* Fade-right mask hints that nav pills continue off-screen */}
+        <div style={{ position: 'relative' }}>
+          <div style={{
+            position: 'absolute', right: 0, top: 0, bottom: 4,
+            width: 36, zIndex: 2, pointerEvents: 'none',
+            background: 'linear-gradient(to right, transparent, ' + C.surface + 'ee)',
+          }} />
+        <nav className="sc-nav" style={{
           display: 'flex', gap: 4, overflowX: 'auto', overflowY: 'visible',
-          padding: '0 8px 7px', scrollbarWidth: 'none', msOverflowStyle: 'none',
-          WebkitOverflowScrolling: 'touch', flexWrap: 'nowrap',
+          padding: '0 8px 4px', WebkitOverflowScrolling: 'touch', flexWrap: 'nowrap',
         }}>
           {[
             { id: 'cellar',   label: '🍾 Cellar' },
@@ -916,6 +930,7 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
             </button>
           )}
         </nav>
+        </div>{/* end nav scroll wrapper */}
       </header>
 
       {/* ── SMART KITCHEN CROSS-PROMO BANNER ────────────────────────────────── */}
