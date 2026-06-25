@@ -1123,7 +1123,7 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
 
       {/* Cellar Advisor / Stock Up */}
       {showAdvisorModal && (
-        <Modal onClose={() => setShowAdvisorModal(false);setAdvisorBought({});setAdvisorAuthPrompt(false);}} title="🛒 What Should I Add?">
+        <Modal onClose={() => { setShowAdvisorModal(false); setAdvisorBought({}); setAdvisorAuthPrompt(false); }}} title="🛒 What Should I Add?">
           {advisorLoading && <LoadingSpinner text="Your AI sommelier is analyzing your cellar…" />}
           {advisorResult?.error && <ErrorMsg msg={advisorResult.error} />}
           {advisorAuthPrompt && (
