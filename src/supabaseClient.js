@@ -23,6 +23,7 @@ export const SC_KEYS = {
   bartesianPods:  'sc_bartesianPods',   // Bartesian pod inventory
   cloudSavedAt:   'sc_cloudSavedAt',
   guestViewer:    'sc_guest_viewer',
+  shoppingList:   'sc_shoppingList',   // advisor buy list
 }
 
 // -- User profile ---------------------------------------------------------------
@@ -85,6 +86,7 @@ export async function loadCloudData(userId) {
       if (parsed.cocktailFavs)  localStorage.setItem(SC_KEYS.cocktailFavs,  JSON.stringify(parsed.cocktailFavs))
       if (parsed.bartesianPods) localStorage.setItem(SC_KEYS.bartesianPods, JSON.stringify(parsed.bartesianPods))
       if (parsed.unitPref)      localStorage.setItem(SC_KEYS.unitPref,      parsed.unitPref)
+      if (parsed.shoppingList)  localStorage.setItem(SC_KEYS.shoppingList,  JSON.stringify(parsed.shoppingList))
       return true
     }
   } catch (e) { console.warn('SC loadCloudData:', e) }
@@ -99,6 +101,7 @@ export async function saveCloudData(userId) {
       cocktailFavs:  JSON.parse(localStorage.getItem(SC_KEYS.cocktailFavs)  || '[]'),
       bartesianPods: JSON.parse(localStorage.getItem(SC_KEYS.bartesianPods) || '[]'),
       unitPref:      localStorage.getItem(SC_KEYS.unitPref) || 'oz',
+      shoppingList:  JSON.parse(localStorage.getItem(SC_KEYS.shoppingList) || '[]'),
       savedAt:       new Date().toISOString(),
     }
     await supabase
