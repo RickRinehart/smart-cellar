@@ -2137,7 +2137,7 @@ function CellarAdvisorResults({ result }) {
                       ✓ Beginner Friendly
                     </span>
                   )}
-                  <a href={`https://www.google.com/search?q=${encodeURIComponent(rec.name + ' buy')}`}
+                  <a href={`https://www.google.com/search?tbm=shop&q=${encodeURIComponent(rec.name + ' 750ml')}`}
                     target="_blank" rel="noopener noreferrer"
                     style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
                       color: 'var(--sc-teal)', textDecoration: 'none',
