@@ -871,6 +871,7 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
             { id: 'diy',      label: '🧪 DIY' },
             { id: 'log',      label: '📋 Log' },
             { id: 'stockup',  label: '🛒 Stock Up' },
+            { id: 'buylist',  label: '📋 Buy List' },
           ].map(({ id, label }) => (
             <button key={id} onClick={() => setView(id)}
               style={{
@@ -1043,6 +1044,11 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
         {/* ━━━━━ STOCK UP VIEW ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         {view === 'stockup' && (
           <StockUpView cellar={cellar} onGetAdvice={getCellarAdvice} />
+        )}
+
+        {/* ━━━━━ BUY LIST VIEW ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {view === 'buylist' && (
+          <BuyListView user={user} supabase={supabase} onAuthAction={onAuthAction} />
         )}
 
         {/* ━━━━━ POUR LOG VIEW ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
@@ -2078,14 +2084,13 @@ function CellarAdvisorResults({ result, user, supabase, bought, setBought, onAut
       await supabase.from('profiles').update({ sc_cloud_data: { ...parsed, shoppingList: updatedScList } }).eq('id', user.id)
       localStorage.setItem('sc_shoppingList', JSON.stringify(updatedScList))
 
-      // 2. Write to Smart Kitchen sk_shoppingList (localStorage)
-      const skList = JSON.parse(localStorage.getItem('sk_shoppingList') || '[]')
+      // 2. Write to Smart Kitchen sk_shoppingList via Supabase user_data table
+      const { data: skData } = await supabase.from('user_data').select('shopping_list').eq('user_id', user.id).single()
+      const skList = skData?.shopping_list || []
       const skAlreadyOn = skList.some(i => (i.name || '').toLowerCase() === rec.name.toLowerCase())
       if (!skAlreadyOn) {
-        localStorage.setItem('sk_shoppingList', JSON.stringify([
-          ...skList,
-          { name: rec.name, checked: false, source: 'Smart Cellar Advisor' }
-        ]))
+        const updatedSkList = [...skList, { name: rec.name, checked: false, source: 'Smart Cellar Advisor' }]
+        await supabase.from('user_data').upsert({ user_id: user.id, shopping_list: updatedSkList, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
       }
       setBought(prev => ({ ...prev, [key]: 'done' }))
     } catch (e) {
@@ -2212,6 +2217,99 @@ function CellarAdvisorResults({ result, user, supabase, bought, setBought, onAut
                 </div>
               </div>
             )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// -- Buy List View ----------------------------------------------------------
+function BuyListView({ user, supabase, onAuthAction }) {
+  const [items, setItems]       = useState([])
+  const [loading, setLoading]   = useState(false)
+  const [removing, setRemoving] = useState({})
+
+  useEffect(() => {
+    // Load from localStorage immediately
+    try {
+      const local = JSON.parse(localStorage.getItem('sc_shoppingList') || '[]')
+      setItems(local)
+    } catch {}
+    // Then sync from Supabase if signed in
+    if (user) {
+      setLoading(true)
+      supabase.from('profiles').select('sc_cloud_data').eq('id', user.id).single()
+        .then(({ data }) => {
+          if (data?.sc_cloud_data) {
+            const parsed = typeof data.sc_cloud_data === 'string' ? JSON.parse(data.sc_cloud_data) : data.sc_cloud_data
+            const list = parsed.shoppingList || []
+            setItems(list)
+            localStorage.setItem('sc_shoppingList', JSON.stringify(list))
+          }
+          setLoading(false)
+        }).catch(() => setLoading(false))
+    }
+  }, [user])
+
+  async function removeItem(name) {
+    setRemoving(prev => ({ ...prev, [name]: true }))
+    const updated = items.filter(i => i.name !== name)
+    setItems(updated)
+    localStorage.setItem('sc_shoppingList', JSON.stringify(updated))
+    if (user) {
+      const { data } = await supabase.from('profiles').select('sc_cloud_data').eq('id', user.id).single()
+      if (data?.sc_cloud_data) {
+        const parsed = typeof data.sc_cloud_data === 'string' ? JSON.parse(data.sc_cloud_data) : data.sc_cloud_data
+        await supabase.from('profiles').update({ sc_cloud_data: { ...parsed, shoppingList: updated } }).eq('id', user.id)
+      }
+    }
+    setRemoving(prev => ({ ...prev, [name]: false }))
+  }
+
+  if (!user) {
+    return (
+      <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>🔐</div>
+        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, color: 'var(--sc-text)', marginBottom: 8 }}>Sign in to see your Buy List</div>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--sc-muted)', marginBottom: 24 }}>Items you add from the Cellar Advisor sync here and to Smart Kitchen.</div>
+        <button onClick={onAuthAction} style={{ background: 'var(--sc-burgundy)', color: '#fff', border: 'none', borderRadius: 12, fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: 15, padding: '12px 28px', cursor: 'pointer' }}>Sign In</button>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, color: 'var(--sc-text)', marginBottom: 4 }}>Buy List</div>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--sc-muted)', marginBottom: 20 }}>Items added from the Cellar Advisor. Also synced to your Smart Kitchen shopping list.</div>
+      {loading && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--sc-muted)', marginBottom: 16 }}>Loading…</div>}
+      {!loading && items.length === 0 && (
+        <div style={{ background: 'var(--sc-card)', border: '1px solid var(--sc-border)', borderRadius: 16, padding: '32px 24px', textAlign: 'center' }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🛒</div>
+          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, color: 'var(--sc-text)', marginBottom: 8 }}>Your Buy List is empty</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--sc-muted)' }}>Tap “🛒 Add to Lists” on any Cellar Advisor recommendation to add bottles here.</div>
+        </div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {items.map((item, i) => (
+          <div key={i} style={{ background: 'var(--sc-surface)', border: '1px solid var(--sc-border)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 18, color: 'var(--sc-text)', fontWeight: 700 }}>{item.name}</div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+                {item.category && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--sc-muted)' }}>{item.category}</span>}
+                {item.source && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--sc-teal)', background: 'var(--sc-teal)12', borderRadius: 4, padding: '1px 6px' }}>{item.source}</span>}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8', flexShrink: 0 }}>
+              <a href={`https://www.google.com/search?tbm=shop&q=${encodeURIComponent(item.name + ' 750ml')}`} target='_blank' rel='noopener noreferrer'
+                style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--sc-teal)', textDecoration: 'none', background: 'var(--sc-teal)10', border: '1px solid var(--sc-teal)33', borderRadius: 8, padding: '5px 10px' }}>
+                🔍
+              </a>
+              <button onClick={() => removeItem(item.name)} disabled={removing[item.name]}
+                style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#dc2626', background: '#dc262610', border: '1px solid #dc262633', borderRadius: 8, padding: '5px 10px', cursor: 'pointer' }}>
+                {removing[item.name] ? '…' : '✕'}
+              </button>
+            </div>
           </div>
         ))}
       </div>
