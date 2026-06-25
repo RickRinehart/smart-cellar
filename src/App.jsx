@@ -254,6 +254,15 @@ export default function App({ user, tier, can, onUpgrade, onAuthAction }) {
   useEffect(() => { saveLS(SC_KEYS.bartesianPods, bartesianPods) }, [bartesianPods])
   useEffect(() => { localStorage.setItem(SC_KEYS.unitPref, unitPref) }, [unitPref])
 
+  // Hide nav scrollbar on webkit browsers (Android Chrome)
+  useEffect(() => {
+    const style = document.createElement('style')
+    style.id = 'sc-nav-scrollbar-hide'
+    style.textContent = 'nav::-webkit-scrollbar { display: none; }'
+    if (!document.getElementById('sc-nav-scrollbar-hide')) document.head.appendChild(style)
+    return () => {}
+  }, [])
+
   // Apply theme on change
   useEffect(() => {
     document.body.classList.toggle('sc-dark', isDark)
@@ -834,9 +843,9 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
 
         {/* ── Row 2: Nav tabs + Aa + theme + Sync (horizontally scrollable) ── */}
         <nav style={{
-          display: 'flex', gap: 4, overflowX: 'auto',
-          padding: '0 8px 7px', scrollbarWidth: 'none',
-          WebkitOverflowScrolling: 'touch',
+          display: 'flex', gap: 4, overflowX: 'auto', overflowY: 'visible',
+          padding: '0 8px 7px', scrollbarWidth: 'none', msOverflowStyle: 'none',
+          WebkitOverflowScrolling: 'touch', flexWrap: 'nowrap',
         }}>
           {[
             { id: 'cellar',   label: '🍾 Cellar' },
@@ -855,6 +864,7 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
                 background: view === id ? C.burgundy : C.surface,
                 color: view === id ? '#fff' : C.muted,
                 outline: view === id ? 'none' : '1px solid ' + C.border,
+                touchAction: 'manipulation',
               }}>
               {label}
             </button>
