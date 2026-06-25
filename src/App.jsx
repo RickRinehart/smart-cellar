@@ -395,6 +395,8 @@ export default function App({ user, tier, can, onUpgrade, onAuthAction }) {
   const [showAdvisorModal, setShowAdvisorModal]   = useState(false)
   const [advisorResult, setAdvisorResult]         = useState(null)
   const [advisorLoading, setAdvisorLoading]       = useState(false)
+  const [advisorBought, setAdvisorBought]         = useState({})   // { recName: 'saving'|'done'|'error' }
+  const [advisorAuthPrompt, setAdvisorAuthPrompt] = useState(false) // show sign-in nudge
 
   // -- Smart Kitchen cross-promo (detected from SK_crossPromo flag) -------------
   const [skTrialSource, setSkTrialSource] = useState(false)
@@ -1121,11 +1123,26 @@ Suggest 4 cocktails they can make RIGHT NOW (or nearly). Prioritize drinks requi
 
       {/* Cellar Advisor / Stock Up */}
       {showAdvisorModal && (
-        <Modal onClose={() => setShowAdvisorModal(false)} title="🛒 What Should I Add?">
+        <Modal onClose={() => setShowAdvisorModal(false);setAdvisorBought({});setAdvisorAuthPrompt(false);}} title="🛒 What Should I Add?">
           {advisorLoading && <LoadingSpinner text="Your AI sommelier is analyzing your cellar…" />}
           {advisorResult?.error && <ErrorMsg msg={advisorResult.error} />}
+          {advisorAuthPrompt && (
+            <div style={{ background: 'var(--sc-gold)15', border: '1px solid var(--sc-gold)44',
+              borderRadius: 12, padding: '12px 16px', marginBottom: 14,
+              display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: 22 }}>🔐</span>
+              <div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 700,
+                  color: 'var(--sc-text)', marginBottom: 3 }}>Sign in to save to your lists</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+                  color: 'var(--sc-muted)' }}>Tap Sign In above to sync purchases to Smart Cellar and Smart Kitchen.</div>
+              </div>
+            </div>
+          )}
           {advisorResult && !advisorResult.error && (
-            <CellarAdvisorResults result={advisorResult} />
+            <CellarAdvisorResults result={advisorResult} user={user} supabase={supabase}
+              bought={advisorBought} setBought={setAdvisorBought}
+              onAuthNeeded={() => setAdvisorAuthPrompt(true)} />
           )}
         </Modal>
       )}
@@ -2039,10 +2056,43 @@ function StockUpView({ cellar, onGetAdvice }) {
 }
 
 // -- Cellar Advisor Results ---------------------------------------------------
-function CellarAdvisorResults({ result }) {
+function CellarAdvisorResults({ result, user, supabase, bought, setBought, onAuthNeeded }) {
   const [expanded, setExpanded] = useState(null)
   const PRIORITY_COLOR = { 'Essential': 'var(--sc-burgundy)', 'High': 'var(--sc-gold)', 'Nice to Have': 'var(--sc-teal)' }
   const PRIORITY_BG    = { 'Essential': 'var(--sc-burgundy)20', 'High': 'var(--sc-gold)20', 'Nice to Have': 'var(--sc-teal)20' }
+
+  async function handleBuy(rec) {
+    if (!user) { onAuthNeeded(); return; }
+    const key = rec.name
+    setBought(prev => ({ ...prev, [key]: 'saving' }))
+    try {
+      // 1. Write to Smart Cellar sc_shoppingList (Supabase + localStorage)
+      const { data } = await supabase.from('profiles').select('sc_cloud_data').eq('id', user.id).single()
+      const parsed = data?.sc_cloud_data
+        ? (typeof data.sc_cloud_data === 'string' ? JSON.parse(data.sc_cloud_data) : data.sc_cloud_data)
+        : {}
+      const scList = parsed.shoppingList || []
+      const scItem = { name: rec.name, category: rec.category, source: 'Cellar Advisor', addedAt: new Date().toISOString() }
+      const scAlreadyOn = scList.some(i => i.name?.toLowerCase() === rec.name.toLowerCase())
+      const updatedScList = scAlreadyOn ? scList : [...scList, scItem]
+      await supabase.from('profiles').update({ sc_cloud_data: { ...parsed, shoppingList: updatedScList } }).eq('id', user.id)
+      localStorage.setItem('sc_shoppingList', JSON.stringify(updatedScList))
+
+      // 2. Write to Smart Kitchen sk_shoppingList (localStorage)
+      const skList = JSON.parse(localStorage.getItem('sk_shoppingList') || '[]')
+      const skAlreadyOn = skList.some(i => (i.name || '').toLowerCase() === rec.name.toLowerCase())
+      if (!skAlreadyOn) {
+        localStorage.setItem('sk_shoppingList', JSON.stringify([
+          ...skList,
+          { name: rec.name, checked: false, source: 'Smart Cellar Advisor' }
+        ]))
+      }
+      setBought(prev => ({ ...prev, [key]: 'done' }))
+    } catch (e) {
+      console.error('Advisor buy error:', e)
+      setBought(prev => ({ ...prev, [key]: 'error' }))
+    }
+  }
 
   return (
     <div>
@@ -2145,6 +2195,20 @@ function CellarAdvisorResults({ result }) {
                       borderRadius: 8, padding: '5px 12px', display: 'inline-flex', gap: 6, alignItems: 'center' }}>
                     🔍 Find this bottle ↗
                   </a>
+                  <button
+                    disabled={bought[rec.name] === 'saving'}
+                    onClick={() => handleBuy(rec)}
+                    style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+                      border: 'none', borderRadius: 8, padding: '5px 12px',
+                      display: 'inline-flex', gap: 6, alignItems: 'center', cursor: bought[rec.name] === 'done' ? 'default' : 'pointer',
+                      background: bought[rec.name] === 'done' ? 'var(--sc-teal)20' : bought[rec.name] === 'error' ? '#dc262615' : 'var(--sc-burgundy)',
+                      color: bought[rec.name] === 'done' ? 'var(--sc-teal)' : bought[rec.name] === 'error' ? '#dc2626' : '#fff',
+                      fontWeight: 700 }}>
+                    {bought[rec.name] === 'saving' ? '⏳ Adding…'
+                      : bought[rec.name] === 'done' ? '✓ Added to Lists'
+                      : bought[rec.name] === 'error' ? '✕ Try again'
+                      : '🛒 Add to Lists'}
+                  </button>
                 </div>
               </div>
             )}
