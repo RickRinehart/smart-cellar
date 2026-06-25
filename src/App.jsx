@@ -2300,7 +2300,7 @@ function BuyListView({ user, supabase, onAuthAction }) {
                 {item.source && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--sc-teal)', background: 'var(--sc-teal)12', borderRadius: 4, padding: '1px 6px' }}>{item.source}</span>}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8', flexShrink: 0 }}>
+            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
               <a href={`https://www.google.com/search?tbm=shop&q=${encodeURIComponent(item.name + ' 750ml')}`} target='_blank' rel='noopener noreferrer'
                 style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--sc-teal)', textDecoration: 'none', background: 'var(--sc-teal)10', border: '1px solid var(--sc-teal)33', borderRadius: 8, padding: '5px 10px' }}>
                 🔍
