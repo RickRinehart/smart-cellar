@@ -30,9 +30,12 @@ function decodeScalePacket(value) {
   let displayVal, unit, grams
 
   if (unitByte === 0x00) {
-    displayVal = raw / 100;  unit = 'oz';    grams = displayVal * 28.3495
-  } else if (unitByte === 0x01) {
+    // lb: raw/1000 — was previously swapped with oz below, causing lb-mode weights to be
+    // misreported (e.g. a true 2.8lb pour showing as 4.48lb). Same bug found and fixed in
+    // Smart Kitchen's copy of this decoder (source of the "extracted from" comment above).
     displayVal = raw / 1000; unit = 'lb';    grams = displayVal * 453.592
+  } else if (unitByte === 0x01) {
+    displayVal = raw / 100;  unit = 'oz';    grams = displayVal * 28.3495
   } else if (unitByte === 0x03) {
     displayVal = raw / 10;   unit = 'ml';    grams = displayVal   // 1ml≈1g water
   } else if (unitByte === 0x04) {
